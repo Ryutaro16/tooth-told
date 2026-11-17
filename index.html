@@ -1,0 +1,1535 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="歯の状況">
+<meta name="theme-color" content="#0f766e">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>歯の状況把握</title>
+<style>
+/* 配置：上に帯（アプリ名・記録する人）、切り替え（患者／フォロー／設定）は広い画面では帯の中、狭い画面では下に固定。中身は1列、患者画面だけ歯式図＋一覧。 */
+:root{
+  --bg:#f2f5f6; --card:#ffffff; --ink:#1c2a33; --sub:#586874; --line:#cfd8de; --soft:#e8eef1;
+  --accent:#0f766e; --accent-soft:#d5efeb; --on-accent:#ffffff;
+  --watch:#a85507; --watch-soft:#fdebd0;
+  --propose:#6d34d6; --propose-soft:#ece4fd;
+  --poor:#c81e1e; --poor-soft:#fde0e0;
+  --plan:#1d5fd1; --plan-soft:#dde8fb;
+  --due:#b4236b; --due-soft:#fbe1ee;
+  --ok:#17703f; --ok-soft:#dbf3e4;
+  --wait:#0369a1; --wait-soft:#dbeefa;
+  --miss:#dfe4e8; --toast:#1c2a33; --toast-ink:#ffffff; --shade:rgba(10,20,26,.45);
+  --font:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12181c; --card:#1b2329; --ink:#e5ebee; --sub:#9aa8b2; --line:#34414a; --soft:#242e35;
+    --accent:#2cc9b6; --accent-soft:#113a36; --on-accent:#06211e;
+    --watch:#f6b73c; --watch-soft:#3a2c10;
+    --propose:#ab8ffb; --propose-soft:#2a2144;
+    --poor:#f87171; --poor-soft:#401b1b;
+    --plan:#7aa7ff; --plan-soft:#1a2a47;
+    --due:#f472b6; --due-soft:#40182c;
+    --ok:#4ade80; --ok-soft:#12331f;
+    --wait:#38bdf8; --wait-soft:#0f3340;
+    --miss:#283139; --toast:#e5ebee; --toast-ink:#12181c; --shade:rgba(0,0,0,.6);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12181c; --card:#1b2329; --ink:#e5ebee; --sub:#9aa8b2; --line:#34414a; --soft:#242e35;
+  --accent:#2cc9b6; --accent-soft:#113a36; --on-accent:#06211e;
+  --watch:#f6b73c; --watch-soft:#3a2c10;
+  --propose:#ab8ffb; --propose-soft:#2a2144;
+  --poor:#f87171; --poor-soft:#401b1b;
+  --plan:#7aa7ff; --plan-soft:#1a2a47;
+  --due:#f472b6; --due-soft:#40182c;
+  --ok:#4ade80; --ok-soft:#12331f;
+  --wait:#38bdf8; --wait-soft:#0f3340;
+  --miss:#283139; --toast:#e5ebee; --toast-ink:#12181c; --shade:rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);touch-action:manipulation;font-family:var(--font);font-size:1rem;line-height:1.6}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--card)}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+select,input[type=text],input[type=date],input[type=search],textarea{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-height:44px;max-width:100%}
+textarea{width:100%;min-height:92px;resize:vertical;line-height:1.6}
+.btn{min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.danger{color:var(--poor);border-color:var(--poor)}
+.btn.small{min-height:38px;padding:4px 12px;font-size:.88rem}
+.btn:disabled{opacity:.4}
+.note{font-size:.82rem;color:var(--sub)}
+h2{font-size:1.08rem;margin:22px 0 8px;text-wrap:balance}
+h2 small{font-weight:400;color:var(--sub);font-size:.8rem;margin-left:8px}
+
+/* 上の帯と切り替え */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--card);border-bottom:1px solid var(--line)}
+.topin{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.ttl{font-weight:700}
+.pv{font-size:.72rem;background:var(--watch-soft);color:var(--watch);border-radius:99px;padding:1px 8px;font-weight:700;white-space:nowrap}
+.sp{flex:1}
+.me{font-size:.85rem;color:var(--sub);display:flex;align-items:center;gap:6px}
+.me select{min-height:40px;padding:4px 8px}
+.nav{display:flex;gap:4px}
+.gear{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:10px;background:transparent;color:var(--sub);padding:2px 6px;line-height:1}
+.gear .gi{font-size:1.15rem}.gear small{font-size:.6rem;font-weight:700;margin-top:1px}
+@media(max-width:560px){.topin{flex-wrap:nowrap;gap:6px}.topin .ttl{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}.topin .pv{flex-shrink:0}.me select{max-width:6.5em}.gear{min-width:40px;min-height:40px;flex-shrink:0}}
+.gear.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.nav button{position:relative;min-height:44px;padding:4px 14px;border:0;border-radius:10px;background:transparent;font-weight:600;color:var(--sub);display:flex;align-items:center;gap:6px}
+.nav button.on{background:var(--accent-soft);color:var(--accent)}
+.nav .n{font-size:.7rem;background:var(--due);color:var(--card);border-radius:99px;padding:0 6px;font-weight:700;line-height:1.5}
+@media(max-width:759px){
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);justify-content:space-around;
+    padding:4px max(8px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-left,0px))}
+  .nav button{flex:1;justify-content:center;flex-direction:column;gap:0;font-size:.8rem;padding:4px 2px;min-height:50px}
+  .nav .n{position:absolute;top:2px;right:calc(50% - 30px)}
+}
+@media(max-width:560px){.wide{display:none}.topin{padding-block:6px}
+  .phead .who{order:-1;flex-basis:100%}.phead .btn{min-height:40px;padding:4px 10px;font-size:.9rem}.phead .btn.primary{flex:1}}
+main{max-width:1100px;margin:0 auto;padding-block:16px 110px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* 札・数の箱 */
+.bd{font-size:.75rem;border-radius:99px;padding:1px 8px;font-weight:700;white-space:nowrap;background:var(--soft);color:var(--sub);display:inline-block}
+.bd.watch{background:var(--watch-soft);color:var(--watch)}
+.bd.propose{background:var(--propose-soft);color:var(--propose)}
+.bd.plan{background:var(--plan-soft);color:var(--plan)}
+.bd.poor{background:var(--poor-soft);color:var(--poor)}
+.bd.treated{background:var(--ok-soft);color:var(--ok)}
+.bd.due{background:var(--due-soft);color:var(--due)}
+.bd.ok{background:var(--ok-soft);color:var(--ok)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 12px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px;text-align:left;min-width:0}
+.tile b{display:block;font-size:1.6rem;line-height:1.2;font-variant-numeric:tabular-nums}
+.tile span{font-size:.78rem;color:var(--sub)}
+.tile.watch b{color:var(--watch)} .tile.propose b{color:var(--propose)} .tile.plan b{color:var(--plan)} .tile.due b{color:var(--due)} .tile.poor b{color:var(--poor)} .tile.treated b{color:var(--ok)}
+.tile.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+@media(max-width:560px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tiles.five{grid-template-columns:repeat(5,1fr)}
+@media(max-width:560px){.tiles.five{grid-template-columns:repeat(4,1fr)}.tiles.five .tile{grid-column:span 1}.tiles.five .tile:nth-child(-n+3){grid-column:span 2}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{min-height:42px;padding:6px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);font-size:.92rem}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.chip.add{border-style:dashed;color:var(--sub)}
+.chip.sm{min-height:36px;padding:2px 12px;font-size:.85rem}
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:12px;padding:16px;color:var(--sub);margin-top:8px}
+
+/* 今日 */
+.dayhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.dayhead b{font-size:1.3rem}
+.tcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}
+.tcard.seen{opacity:.6}
+.tcard .hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tcard .hd .nm{font-weight:700;font-size:1.1rem;flex:1;min-width:8em}
+.tcard .hd .nm small{font-weight:400;color:var(--sub);margin-left:6px;font-size:.8rem}
+.pts{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.pts li{display:grid;grid-template-columns:5.2em 1fr;gap:8px;align-items:start;font-size:.92rem}
+.pts li .k{text-align:center}
+.pts li .say{color:var(--sub);font-size:.84rem}
+.pts li b{margin-right:6px}
+
+/* 患者一覧 */
+.listhead{display:flex;gap:8px;flex-wrap:wrap}
+.listhead input{flex:1;min-width:180px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.prow{display:flex;align-items:stretch;gap:0;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:8px;overflow:hidden}
+.prow .go{flex:1;min-width:0;display:flex;align-items:center;gap:10px;flex-wrap:wrap;text-align:left;background:transparent;border:0;padding:10px 12px;min-height:56px}
+.prow .star{width:64px;border:0;border-left:1px solid var(--line);background:transparent;font-size:.75rem;color:var(--sub);font-weight:700}
+.prow .star.on{background:var(--accent-soft);color:var(--accent)}
+.cno{color:var(--sub);font-size:.85rem;min-width:3.2em;font-variant-numeric:tabular-nums}
+.pn{font-weight:700;flex:1;min-width:6em}
+.pn small{font-weight:400;color:var(--sub);margin-left:6px}
+.badges{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+
+/* 患者画面 */
+.phead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.phead .who{flex:1;min-width:10em}
+.phead .who b{font-size:1.25rem}
+.phead .who span{color:var(--sub);font-size:.85rem;margin-left:8px}
+.phead .who div{color:var(--sub);font-size:.82rem}
+.tabs{display:flex;gap:4px;border-bottom:2px solid var(--line);margin:12px 0}
+.tabs button{min-height:44px;padding:6px 16px;border:0;background:transparent;font-weight:700;color:var(--sub);border-bottom:3px solid transparent;margin-bottom:-2px}
+.tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.hand{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.hand .hh{display:flex;align-items:center;gap:8px}
+.hand .hh b{flex:1}
+.hitem{display:flex;gap:8px;align-items:flex-start;padding:8px 0 0;margin-top:8px;border-top:1px solid var(--soft)}
+.hitem .tx{flex:1;min-width:0}
+.hitem .tx small{display:block;color:var(--sub);font-size:.78rem}
+.hitem.done .tx{color:var(--sub);text-decoration:line-through}
+
+/* 歯式図 */
+.chart{display:flex;flex-wrap:wrap;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px}
+.half{flex:1 1 300px;min-width:0}
+@media(min-width:760px){.half+.half{border-left:2px solid var(--line);padding-left:10px}}
+.hl{font-size:.75rem;color:var(--sub);margin:0 2px 4px;font-weight:700}
+.half:nth-child(2) .hl{text-align:right}
+.row{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;padding-top:9px}
+.row.lo{margin-top:4px;padding-top:6px;border-top:2px solid var(--line)}
+.t{position:relative;border:1px solid var(--line);border-radius:8px;background:var(--card);text-align:center;padding:4px 0;min-height:66px;color:var(--sub);display:flex;flex-direction:column;align-items:center;min-width:0}
+.row.up .t{border-radius:8px 8px 14px 14px}
+.row.lo .t{border-radius:14px 14px 8px 8px}
+.t b{font-size:.95rem;line-height:1.3;font-variant-numeric:tabular-nums}
+.t i{font-style:normal;font-weight:700;font-size:1rem;line-height:1.2;min-height:1.2em}
+.t small{font-size:.66rem;font-weight:700;line-height:1.2}
+.legend .duepill{display:inline-block;background:var(--due);color:var(--card);border-radius:99px;font-size:.7rem;padding:0 5px;margin-right:2px}
+.maru{display:inline-block;width:1.25em;height:1.25em;border:1.5px solid currentColor;border-radius:50%;font-size:.7rem;line-height:calc(1.25em - 3px);text-align:center;font-style:normal;vertical-align:middle}
+.maru.sm{font-size:.62rem}
+.t i .maru{font-size:.82rem;width:1.45em;height:1.45em;line-height:calc(1.45em - 3px)}
+.t i.word{font-size:.78rem;line-height:1.5}
+.t.wait{background:var(--wait-soft);border-color:var(--wait);color:var(--wait)}
+.t .dot.soon{background:var(--wait)}
+.legend i.wait{background:var(--wait-soft);border-color:var(--wait)}
+.legend .soonpill{display:inline-block;background:var(--wait);color:var(--card);border-radius:99px;font-size:.7rem;padding:0 5px;margin-right:2px}
+.bd.wait{background:var(--wait-soft);color:var(--wait)}
+.waitcard{border:1px solid var(--wait);border-radius:12px;padding:10px 12px;margin:0 0 10px;background:var(--card)}
+.waitcard .wflow{background:var(--wait-soft);border-radius:8px;padding:7px 10px;font-size:.86rem;line-height:1.7;margin:6px 0}
+.tplbtn{display:block;width:100%;text-align:left;border:1px dashed var(--wait);color:var(--wait);border-radius:10px;padding:8px 10px;margin:0 0 6px;background:transparent;font:inherit;font-size:.88rem}
+.tplbtn.on{border-style:solid;background:var(--wait-soft);font-weight:700}
+div.frow .a{cursor:pointer}
+.t small.pbig{width:2.1em;font-size:.72rem;line-height:1.1;margin-top:3px}
+.t.watch{background:var(--watch-soft);border-color:var(--watch);color:var(--watch)}
+.t.propose{background:var(--propose-soft);border-color:var(--propose);color:var(--propose)}
+.t.plan{background:var(--plan-soft);border-color:var(--plan);color:var(--plan)}
+.t.poor{background:var(--poor-soft);border-color:var(--poor);color:var(--poor);border-width:2px}
+.t.treated{background:var(--ok-soft);border-color:var(--ok);color:var(--ok);border-style:dashed}
+.t.miss{background:var(--miss);border-style:dashed}
+.t.sel{outline:3px solid var(--accent);outline-offset:1px}
+.t.dim{opacity:.28}
+.t .dot{position:absolute;top:-13px;left:50%;transform:translateX(-50%);height:15px;border-radius:99px;background:var(--due);color:var(--card);font-size:.58rem;font-weight:700;line-height:15px;padding:0 4px;white-space:nowrap;z-index:1}
+.t .cnt{position:absolute;bottom:-5px;right:-3px;min-width:16px;height:16px;border-radius:99px;background:var(--ink);color:var(--card);font-size:.62rem;font-weight:700;line-height:16px;padding:0 3px}
+.t:disabled{opacity:.5}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--sub);margin:8px 2px 0}
+.legend span{white-space:nowrap}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:4px;vertical-align:-1px;border:1px solid}
+.legend i.watch{background:var(--watch-soft);border-color:var(--watch)}
+.legend i.propose{background:var(--propose-soft);border-color:var(--propose)}
+.legend i.plan{background:var(--plan-soft);border-color:var(--plan)}
+.legend i.poor{background:var(--poor-soft);border-color:var(--poor)}
+.legend i.treated{background:var(--ok-soft);border-color:var(--ok);border-style:dashed}
+.legend i.miss{background:var(--miss);border-style:dashed;border-color:var(--sub)}
+.legend i.duei{background:var(--due);border-color:var(--due);border-radius:99px}
+
+/* 伝えてあること */
+.told{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px}
+.told .hd{display:flex;gap:6px 8px;flex-wrap:wrap;align-items:center}
+.told .no{font-weight:700;font-size:1.05rem;border-radius:8px;padding:0 8px;background:var(--soft)}
+.told.watch .no{background:var(--watch-soft);color:var(--watch)}
+.told.propose .no{background:var(--propose-soft);color:var(--propose)}
+.told.plan .no{background:var(--plan-soft);color:var(--plan)}
+.told.poor .no{background:var(--poor-soft);color:var(--poor)}
+.told .fd{font-weight:700}
+.told .say{margin:6px 0 2px}
+.told .sub{font-size:.82rem;color:var(--sub);display:flex;gap:4px 12px;flex-wrap:wrap}
+.told.done{opacity:.7}
+details.donebox{margin-top:16px}
+details.donebox summary{cursor:pointer;color:var(--sub);font-weight:600;min-height:44px;display:flex;align-items:center}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.acts-break{flex-basis:100%;height:0}
+.flow{margin:6px 0 2px;padding:6px 10px;border-radius:8px;background:var(--ok-soft);color:var(--ink);font-size:.86rem}
+.flow b{color:var(--ok)}
+.menu{display:grid;gap:10px}
+.menu .btn{display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:12px 16px;min-height:52px}
+.menu .btn .maru,.acts .btn .maru{font-size:.86rem;width:1.4em;height:1.4em;line-height:calc(1.4em - 3px);margin-right:3px}
+.menu .btn small{font-weight:400;font-size:.78rem;opacity:.8}
+
+/* 時系列 */
+.tl{list-style:none;margin:8px 0 0;padding:0 0 0 14px;border-left:2px solid var(--line)}
+.tl li{position:relative;padding:0 0 12px 12px;font-size:.9rem}
+.tl li::before{content:"";position:absolute;left:-21px;top:.45em;width:12px;height:12px;border-radius:50%;background:var(--card);border:3px solid var(--sub)}
+.tl li.explain::before,.tl li.re::before{border-color:var(--accent)}
+.tl li.check::before{border-color:var(--ok)}
+.tl li.warn::before{border-color:var(--poor);background:var(--poor)}
+.tl li.done::before{border-color:var(--sub);background:var(--sub)}
+.tl li.hand::before{border-color:var(--propose)}
+.tl .d{color:var(--sub);font-size:.8rem;font-variant-numeric:tabular-nums;margin-right:6px}
+.tl .w{color:var(--sub);font-size:.8rem}
+.tl .q{display:block;color:var(--sub);font-size:.84rem}
+.tl.mini{margin-top:10px}
+.tl.mini li{padding-bottom:6px;font-size:.84rem}
+.ym{font-size:.8rem;color:var(--sub);font-weight:700;margin:14px 0 2px}
+
+/* 1枚まとめ */
+.sum{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.sum h3{font-size:.95rem;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--line)}
+.sum .st{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:baseline}
+.sum .st b{font-size:1.2rem}
+.srow{display:grid;grid-template-columns:4.4em 1.1fr 1.1fr 2.2fr 1.4fr;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--soft);font-size:.88rem}
+.srow.h{font-size:.75rem;color:var(--sub);font-weight:700;padding:4px 0}
+.srow>div{min-width:0}
+@media(max-width:700px){.srow{grid-template-columns:4.4em 1fr}.srow.h{display:none}.srow>div:nth-child(n+3){grid-column:2}}
+.focus{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.focus li{font-size:.92rem}
+
+/* フォロー */
+.frow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px;min-height:56px}
+.frow .a{flex:1;min-width:12em}
+.frow .a small{display:block;color:var(--sub);font-size:.82rem}
+
+/* 下から出る画面 */
+.sheetwrap{position:fixed;inset:0;z-index:20;background:var(--shade);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:780px;max-height:92vh;max-height:92dvh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden}
+@media(min-width:780px){.sheetwrap{align-items:center}.sheet{border-radius:18px}}
+.sh-head{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+.sh-head b{flex:1;font-size:1.1rem}
+.x{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:1.3rem;line-height:1}
+.sh-body{overflow:auto;padding:12px 16px 16px;-webkit-overflow-scrolling:touch;flex:1}
+.sh-foot{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--card)}
+.sec{margin:4px 0 14px}
+.sec>.lb{font-size:.82rem;color:var(--sub);font-weight:600;margin-bottom:4px}
+.arrow{color:var(--sub);padding:0 4px}
+.tpl{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-top:6px;font-size:.88rem}
+.field{display:block;margin-bottom:12px}
+.field span{display:block;font-size:.82rem;color:var(--sub);font-weight:600;margin-bottom:4px}
+.field input,.field select{width:100%}
+.lineitem{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 12px;margin-top:6px}
+.lineitem span{flex:1;min-width:0;font-size:.9rem}
+.lineitem button{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card)}
+.addrow{display:flex;gap:8px;margin-top:8px}
+.addrow input{flex:1;min-width:0}
+/* 確かめる小窓（confirm/prompt の代わり） */
+#dlg .sheetwrap{z-index:40;align-items:center;padding:16px}
+#dlg .box{background:var(--card);border-radius:16px;padding:16px;width:100%;max-width:440px;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+#dlg .box h3{margin:0 0 8px;font-size:1.05rem}
+#dlg .box p{margin:0 0 12px;color:var(--sub);font-size:.92rem;white-space:pre-wrap}
+#dlg .box .acts{justify-content:flex-end}
+/* 知らせ */
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;background:var(--toast);color:var(--toast-ink);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;width:max-content;max-width:calc(100% - 32px);box-shadow:0 6px 24px rgba(0,0,0,.25)}
+#toast button{background:transparent;border:1px solid currentColor;color:inherit;border-radius:8px;min-height:36px;padding:4px 10px;font-weight:600;white-space:nowrap}
+@media print{
+  .top,.phead .btn,.tabs,.noprint,#toast,#sheet,#dlg{display:none!important}
+  body{background:#fff} main{padding:0;max-width:none} .sum{border:0;padding:0}
+}
+</style>
+<div id="app"></div>
+<div id="sheet" hidden></div>
+<div id="dlg" hidden></div>
+<div id="toast" hidden></div>
+<script>
+/* ================= 項目（医院で足せる。初期値は「例」） ================= */
+const FIND0 = [
+  { id: 'poor',   label: '予後不良',      short: '予後', say: '予後不良です' },
+  { id: 'cwatch', label: 'C（経過観察）', short: 'C観',  say: '経過観察中のむし歯があります' },
+  { id: 'vrf',    label: '歯根破折',      short: '破折', say: '根が割れています' },
+  { id: 'apical', label: '根尖病巣',      short: '根尖', say: '根の先に病巣があります' },
+  { id: 'misfit', label: '補綴物不適',    short: '不適', say: '詰め物・かぶせ物の境目にすき間があります' },
+  { id: 'mob',    label: '動揺',          short: '動揺', say: '歯が揺れています' },
+];
+const POLICY = [
+  { id: 'watch',   label: '様子を見る',     cat: 'watch',   say: '今は様子を見ましょう', short: '観察' },
+  { id: 'use',     label: '使えるまで使う', cat: 'watch',   say: '使えるまで使いましょう', short: '使用' },
+  { id: 'propose', label: '提案して検討中', cat: 'propose', say: '', short: '提案' },
+  { id: 'plan',    label: '治療予定',       cat: 'plan',    say: '治療しましょう', short: '治予' },
+];
+const WHEN0 = [
+  { id: 'progress', label: '進行したら' }, { id: 'pain', label: '痛くなったら' }, { id: 'off', label: '外れたら' },
+  { id: 'any', label: '何かあったら' }, { id: 'redo', label: 'やり直すなら' },
+];
+const THEN0 = [
+  { id: 'treat', label: '治療', say: '治療しましょう' }, { id: 'ext', label: '抜歯', say: '抜歯しましょう' },
+  { id: 'endo', label: '根の治療', say: '根の治療をしましょう' }, { id: 'redo', label: 'やり直し', say: 'やり直しましょう' },
+  { id: 'ceramic', label: 'セラミック', say: 'セラミックがおすすめです' }, { id: 'consult', label: '相談', say: '相談しましょう' },
+];
+const SITES = ['近心', '遠心', '頬側', '舌側', '咬合面'];
+const REACT = [{ id: 'agree', label: '納得' }, { id: 'think', label: '検討中' }, { id: 'decline', label: '希望しない' }];
+const EVERY = [{ id: 'visit', label: '来院のたび' }, { id: '3', label: '3か月ごと' }, { id: '6', label: '6か月ごと' }, { id: '12', label: '1年ごと' }, { id: '24', label: '2年ごと' }, { id: 'none', label: '期間の定めなし' }];
+const RESULT = [{ id: 'same', label: '変化なし' }, { id: 'worse', label: '進行あり' }, { id: 'symptom', label: '症状あり' }, { id: 'better', label: '改善' }];
+const DONE_WHY = ['治療した', '抜歯した', '方針が変わった', 'その他'];
+// 治療の種類（医院で足せる。short は歯式図に出す略）
+const TREAT0 = [
+  { id: 'cr', label: 'CR', short: 'CR' }, { id: 'db', label: 'ダイレクトボンディング', short: 'DB' },
+  { id: 'cerin', label: 'セラミックインレー', short: 'セラIn' }, { id: 'cadin', label: 'CAD/CAMインレー', short: 'CADIn' },
+  { id: 'cadcr', label: 'CAD/CAMクラウン', short: 'CADCr' }, { id: 'cercr', label: 'セラミッククラウン', short: 'セラCr' },
+  { id: 'inlay', label: 'インレー', short: 'In' }, { id: 'fmc', label: 'FMC', short: 'FMC' },
+  { id: 'endo', label: 'エンド', short: 'エンド' }, { id: 'pendo', label: '自費エンド', short: '自費E' },
+  { id: 'ext', label: '抜歯', short: '抜歯' },
+];
+const CAT_NAME = { wait: '待機中', poor: '予後不良', watch: '経過観察中', propose: '提案して検討中', plan: '治療予定', treated: '治療済み' };
+const CAT_SHORT = { poor: '予後不良', watch: '経過観察', propose: '検討中', plan: '治療予定', treated: '治療済み' };
+const CAT_MARK = { wait: '', poor: '', watch: 'obs', propose: '', plan: '', treated: '済' };
+// 初めての人でも分かるよう、状態そのものは記号でなく文字で出す
+const CAT_WORD = { poor: '予後不良', plan: '治療予定', propose: '検討中', wait: '待機中' };
+const PRI = { poor: 4, plan: 3, propose: 2, watch: 1 };
+const TREATED_WHY = ['治療した', '抜歯した']; // 「済みにする」の理由がこれなら「治療済み」に数える
+// 待機（抜歯後・埋入後などに待つ期間）。期間と次にすることは先生が選ぶ。アプリは時期を知らせるだけ
+const WAIT_AFTER0 = ['抜歯', 'インプラント埋入', '骨造成', 'ソケットプリザベーション', '根の治療'];
+const WAIT_NEXT0 = ['インプラント埋入', '二次手術', '型取り', '上部構造', 'かぶせ物'];
+const WAIT_MONTHS = [{ id: '1', label: '1か月' }, { id: '2', label: '2か月' }, { id: '3', label: '3か月' }, { id: '4', label: '4か月' }, { id: '6', label: '6か月' }, { id: 'd', label: '日数で' }];
+const WAIT_TPL0 = [
+  { id: 'imp', label: 'インプラント', steps: [{ after: '抜歯', months: '4', next: 'インプラント埋入' }, { after: 'インプラント埋入', months: '3', next: '型取り' }] },
+  { id: 'endo', label: '根の治療', steps: [{ after: '根の治療', months: '3', next: 'かぶせ物' }] },
+  { id: 'gbr', label: '骨造成', steps: [{ after: '骨造成', months: '6', next: 'インプラント埋入' }, { after: 'インプラント埋入', months: '3', next: '型取り' }] },
+];
+const WAIT_SOON = 14; // 明ける何日前から知らせるか
+const CUSTOM_KIND = { findings: '何があるか', when: 'こうなったら', then: 'こうする', treat: '治療の種類' };
+
+/* ================= 道具 ================= */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = (n) => String(n).padStart(2, '0');
+const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const today = () => fmt(new Date());
+const toDate = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / 864e5);
+const ago = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return fmt(d); };
+function addMonths(s, n) {
+  const d = toDate(s), day = d.getDate();
+  d.setDate(1); d.setMonth(d.getMonth() + n);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return fmt(d);
+}
+const jdate = (s) => { if (!s) return ''; const d = toDate(s); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`; };
+const jym = (s) => { const d = toDate(s); return `${d.getFullYear()}年${d.getMonth() + 1}月`; };
+function agoText(s) {
+  const n = daysBetween(s, today());
+  if (n <= 0) return '今日'; if (n < 31) return `${n}日前`; if (n < 365) return `${Math.floor(n / 30.4)}か月前`;
+  const y = Math.floor(n / 365), m = Math.floor((n % 365) / 30.4); return `${y}年${m ? m + 'か月' : ''}前`;
+}
+const UP_R = [18, 17, 16, 15, 14, 13, 12, 11], UP_L = [21, 22, 23, 24, 25, 26, 27, 28];
+const LO_R = [48, 47, 46, 45, 44, 43, 42, 41], LO_L = [31, 32, 33, 34, 35, 36, 37, 38];
+const QN = { 1: '右上', 2: '左上', 3: '左下', 4: '右下' };
+const tname = (t) => QN[Math.floor(t / 10)] + (t % 10);
+function age(birth) {
+  if (!birth) return '';
+  const b = toDate(birth), n = new Date();
+  let a = n.getFullYear() - b.getFullYear();
+  if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--;
+  return isNaN(a) ? '' : `${a}歳`;
+}
+const norm = (s) => (s || '').normalize('NFKC').toLowerCase().replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60)).replace(/\s+/g, '');
+const inFrame = (() => { try { return window.top !== window; } catch (e) { return true; } })();
+
+/* ================= 保存（IndexedDB。使えないときだけ localStorage） ================= */
+const KEY = 'tooth-told';
+let db;
+function migrate(d) {
+  d.v = 2;
+  d.patients = d.patients || []; d.memos = d.memos || []; d.missing = d.missing || {};
+  d.handoffs = d.handoffs || []; d.waits = d.waits || [];
+  d.waitTpl = d.waitTpl || [];
+  d.custom = Object.assign({ findings: [], when: [], then: [], treat: [] }, d.custom || {});
+  const s0 = sample().settings;
+  d.settings = Object.assign({ staff: s0.staff, me: s0.staff[0], templates: [], font: 'm' }, d.settings || {});
+  if (!d.today || d.today.date !== today()) d.today = { date: today(), ids: [], seen: [] };
+  d.today.seen = d.today.seen || [];
+  for (const p of d.patients) { p.kana = p.kana || ''; p.note = p.note || ''; }
+  for (const m of d.memos) {
+    m.findings = m.findings || []; m.sites = m.sites || []; m.ifThen = m.ifThen || { when: '', then: '' };
+    m.history = m.history || []; m.checkEvery = m.checkEvery || ''; m.status = m.status || 'active';
+  }
+  return d;
+}
+let idb = null;
+function openIdb() {
+  return new Promise((res) => {
+    try {
+      const r = indexedDB.open('tooth-told', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result); r.onerror = () => res(null);
+    } catch (e) { res(null); }
+  });
+}
+function idbGet() {
+  return new Promise((res) => {
+    try { const q = idb.transaction('kv').objectStore('kv').get('db'); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); } catch (e) { res(null); }
+  });
+}
+// 最初は空っぽ（見本は設定から入れられる）
+function emptyDb() { const s0 = sample(); return migrate({ patients: [], memos: [], missing: {}, handoffs: [], waits: [], waitTpl: [], custom: s0.custom, settings: s0.settings }); }
+async function load() {
+  idb = await openIdb();
+  let s = idb ? await idbGet() : null;
+  if (!s) { try { s = localStorage.getItem(KEY); } catch (e) { /* 使えない環境 */ } }
+  try { db = s ? migrate(typeof s === 'string' ? JSON.parse(s) : s) : emptyDb(); } catch (e) { db = emptyDb(); }
+  // 容量の整理で消されないように、Safari に頼んでおく
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* 対応していない */ }
+}
+let saveWarned = false;
+function save() {
+  const text = JSON.stringify(db);
+  const fail = () => { if (!saveWarned) { saveWarned = true; toast('保存できませんでした。設定から書き出してください'); } };
+  if (idb) {
+    try { const tx = idb.transaction('kv', 'readwrite'); tx.objectStore('kv').put(text, 'db'); tx.onerror = fail; } catch (e) { fail(); }
+  } else {
+    try { localStorage.setItem(KEY, text); } catch (e) { fail(); }
+  }
+}
+function sample() {
+  const now = Date.now();
+  const P = (chartNo, name, kana, birth, note) => ({ id: uid(), chartNo, name, kana, birth, note, createdAt: now, updatedAt: now });
+  const a = P('9999', '見本 太郎', 'みほん たろう', '1968-04-12', '架空の患者。3か月ごとのメンテナンス');
+  const b = P('9998', '見本 花子', 'みほん はなこ', '1975-09-03', '架空の患者');
+  const c = P('9997', '見本 次郎', 'みほん じろう', '1990-01-20', '架空の患者（記録なし）');
+  const d = P('9996', '見本 幸子', 'みほん さちこ', '1955-11-08', '架空の患者。提案の返事待ち');
+  const e = P('9995', '見本 健一', 'みほん けんいち', '1982-06-25', '架空の患者');
+  const H = (date, by, kind, o = {}) => ({ date, by, kind, memo: '', ...o });
+  const M = (p, tooth, o) => ({ id: uid(), patientId: p.id, tooth, findings: [], sites: [], policy: 'watch', ifThen: { when: '', then: '' },
+    said: '', reaction: 'agree', checkEvery: '', status: 'active', history: [], createdAt: now, updatedAt: now, ...o });
+  const memos = [
+    M(a, 17, { findings: ['poor'], policy: 'use', ifThen: { when: 'any', then: 'ext' }, checkEvery: 'visit', said: '予後不良です。使えるまで使い、何かあったら抜歯しましょう。',
+      history: [H(ago(580), '院長', 'explain'), H(ago(400), '衛生士A', 'check', { result: 'same', re: true }), H(ago(215), '衛生士A', 'check', { result: 'same', re: true }), H(ago(95), '衛生士B', 'check', { result: 'worse', re: true, memo: '動揺が少し増えた' })] }),
+    M(a, 26, { findings: ['vrf'], policy: 'use', ifThen: { when: 'off', then: 'ext' }, checkEvery: '6', said: '根が割れています。かぶせ物を外すと抜歯になるので、使えるまで使いましょう。',
+      history: [H(ago(290), '院長', 'explain'), H(ago(95), '衛生士B', 'check', { result: 'same', re: false })] }),
+    M(a, 36, { findings: ['cwatch'], sites: ['遠心'], policy: 'watch', ifThen: { when: 'progress', then: 'treat' }, checkEvery: '6', said: '遠心に経過観察中のむし歯があります。進行したら治療が必要です。',
+      history: [H(ago(560), '院長', 'explain'), H(ago(380), '衛生士A', 'check', { result: 'same', re: true }), H(ago(200), '衛生士A', 'check', { result: 'same', re: true })] }),
+    M(a, 46, { findings: ['apical'], policy: 'watch', ifThen: { when: 'pain', then: 'endo' }, said: '根の先に病巣があります。痛くなったら根の治療をしましょう。',
+      history: [H(ago(450), '院長', 'explain')] }),
+    M(a, 14, { findings: ['misfit'], policy: 'propose', ifThen: { when: 'redo', then: 'ceramic' }, reaction: 'think', checkEvery: 'visit', said: '詰め物の境目にすき間があります。やり直すならセラミックがおすすめです。',
+      history: [H(ago(95), '院長', 'explain')] }),
+    M(a, 45, { policy: 'plan', ifThen: { when: '', then: 'treat' }, said: 'むし歯が進んでいるので、次回詰めましょう。',
+      history: [H(ago(95), '院長', 'explain')] }),
+    M(a, 47, { findings: ['cwatch'], policy: 'watch', ifThen: { when: 'progress', then: 'treat' }, said: '経過観察中のむし歯があります。進行したら治療しましょう。', status: 'done',
+      history: [H(ago(700), '院長', 'explain'), H(ago(480), '院長', 'done', { memo: '治療した', treat: 'cr' })] }),
+    M(b, 16, { findings: ['poor', 'mob'], policy: 'use', ifThen: { when: 'any', then: 'consult' }, checkEvery: '3', said: '予後不良です。歯が揺れています。使えるまで使い、何かあったら相談しましょう。',
+      history: [H(ago(140), '院長', 'explain')] }),
+    M(b, 37, { findings: ['cwatch'], sites: ['咬合面'], policy: 'watch', ifThen: { when: 'progress', then: 'treat' }, checkEvery: '6', said: '咬合面に経過観察中のむし歯があります。進行したら治療しましょう。',
+      history: [H(ago(140), '衛生士B', 'explain')] }),
+    M(d, 24, { findings: ['misfit'], policy: 'propose', ifThen: { when: 'redo', then: 'ceramic' }, reaction: 'think', checkEvery: 'visit', said: 'かぶせ物の境目にすき間があります。やり直すならセラミックがおすすめです。',
+      history: [H(ago(60), '院長', 'explain')] }),
+    M(d, 25, { findings: ['misfit'], policy: 'propose', ifThen: { when: 'redo', then: 'ceramic' }, reaction: 'think', checkEvery: 'visit', said: 'かぶせ物の境目にすき間があります。やり直すならセラミックがおすすめです。',
+      history: [H(ago(60), '院長', 'explain')] }),
+    M(d, 46, { findings: ['apical'], policy: 'watch', ifThen: { when: 'pain', then: 'endo' }, reaction: 'decline', checkEvery: '12', said: '根の先に病巣があります。今は治療を希望されないので、痛くなったら根の治療をしましょう。',
+      history: [H(ago(330), '院長', 'explain')] }),
+    M(e, 11, { findings: ['cwatch'], sites: ['近心'], policy: 'watch', ifThen: { when: 'progress', then: 'treat' }, checkEvery: '6', said: '近心に経過観察中のむし歯があります。進行したら治療しましょう。',
+      history: [H(ago(40), '院長', 'explain')] }),
+    M(e, 36, { policy: 'plan', ifThen: { when: '', then: 'treat' }, said: '詰め物が欠けています。次回やり直しましょう。',
+      history: [H(ago(40), '院長', 'explain')] }),
+  ];
+  const HO = (p, tooth, text, by, n, o = {}) => ({ id: uid(), patientId: p.id, tooth, text, by, date: ago(n), done: false, doneBy: '', doneDate: '', ...o });
+  return {
+    v: 2, patients: [a, b, c, d, e], memos,
+    missing: { [a.id]: [18, 28, 38, 48], [b.id]: [18, 28, 48], [d.id]: [18, 28, 38, 48, 47] },
+    waits: [
+      { id: uid(), patientId: b.id, tooth: 46, after: '抜歯', months: '4', days: '', next: 'インプラント埋入', start: ago(112), by: '院長', tpl: 'imp', step: 0, status: 'active', doneDate: '', doneBy: '' },
+      { id: uid(), patientId: e.id, tooth: 46, after: '抜歯', months: '4', days: '', next: 'インプラント埋入', start: ago(230), by: '院長', tpl: 'imp', step: 0, status: 'done', doneDate: ago(100), doneBy: '院長' },
+      { id: uid(), patientId: e.id, tooth: 46, after: 'インプラント埋入', months: '3', days: '', next: '型取り', start: ago(100), by: '院長', tpl: 'imp', step: 1, status: 'active', doneDate: '', doneBy: '' },
+    ],
+    waitTpl: [],
+    handoffs: [
+      HO(a, 17, '前回、動揺が少し増えていました。今日も揺れを見て、変わっていたら声をかけてください。', '衛生士B', 95),
+      HO(d, 24, 'セラミックの見積もりを渡してあります。返事を聞いてください。', '院長', 60),
+      HO(a, 0, '歯間ブラシのサイズを上げました。', '衛生士A', 215, { done: true, doneBy: '衛生士B', doneDate: ago(95) }),
+    ],
+    today: { date: today(), ids: [a.id, d.id, c.id], seen: [] },
+    custom: { findings: [], when: [], then: [], treat: [] },
+    settings: {
+      staff: ['院長', '衛生士A', '衛生士B'], me: '院長', font: 'm',
+      templates: [
+        '予後不良です。使えるまで使い、何かあったら抜歯しましょう。',
+        '根が割れています。かぶせ物を外すと抜歯になるので、使えるまで使いましょう。',
+        '経過観察中のむし歯があります。進行したら治療が必要です。',
+        '根の先に病巣があります。痛くなったら根の治療をしましょう。',
+        '詰め物の境目にすき間があります。やり直すならセラミックがおすすめです。',
+      ],
+    },
+  };
+}
+
+/* ================= データの読み方 ================= */
+const findAll = () => FIND0.concat(db.custom.findings);
+const whenAll = () => WHEN0.concat(db.custom.when);
+const thenAll = () => THEN0.concat(db.custom.then);
+const treatAll = () => TREAT0.concat(db.custom.treat || []);
+const doneH = (m) => m.history.filter((h) => h.kind === 'done').pop();
+const treatOf = (m) => { const h = doneH(m); return h && h.treat ? treatAll().find((x) => x.id === h.treat) : null; };
+const treatShort = (m) => (treatOf(m) || {}).short || '';
+const shown = (arr) => arr.filter((x) => !x.hidden);
+const waitTplAll = () => WAIT_TPL0.concat(db.waitTpl || []);
+const tplText = (tp) => tp.label + '：' + tp.steps.map((x, i) => `${x.after} → ${x.months === 'd' ? (x.days || '') + '日' : x.months + 'か月'}${i === tp.steps.length - 1 ? ' → ' + x.next : ''}`).join(' → ');
+const waitEnd = (w) => (w.months === 'd' ? fmt(new Date(toDate(w.start).getTime() + (+w.days || 0) * 864e5)) : addMonths(w.start, +w.months));
+const waitLen = (w) => (w.months === 'd' ? `${w.days}日` : `${w.months}か月`);
+const waitLeft = (w) => daysBetween(today(), waitEnd(w));
+const waitState = (w) => { const n = waitLeft(w); return n <= 0 ? 'over' : n <= WAIT_SOON ? 'soon' : 'ok'; };
+const waitsOf = (pid, t) => (db.waits || []).filter((w) => w.patientId === pid && (!t || w.tooth === t));
+const waitActive = (pid, t) => waitsOf(pid, t).filter((w) => w.status === 'active');
+const waitPill = (w) => { const st = waitState(w); return st === 'over' ? '<span class="dot" aria-label="待機が明けた">時期</span>' : st === 'soon' ? `<span class="dot soon" aria-label="待機明けまで">あと${waitLeft(w)}日</span>` : ''; };
+const waitBadge = (w) => { const st = waitState(w); return st === 'over' ? '<span class="bd due">待機明け</span>' : st === 'soon' ? `<span class="bd wait">あと${waitLeft(w)}日</span>` : `<span class="bd wait">${jdate(waitEnd(w))}ごろ明け</span>`; };
+const fById = (id) => findAll().find((f) => f.id === id);
+const lbl = (arr, id) => (arr.find((a) => a.id === id) || {}).label || '';
+const catOf = (m) => (POLICY.find((p) => p.id === m.policy) || POLICY[0]).cat;
+const pById = (id) => db.patients.find((p) => p.id === id);
+const active = (pid) => db.memos.filter((m) => m.patientId === pid && m.status === 'active');
+const doneOf = (pid) => db.memos.filter((m) => m.patientId === pid && m.status === 'done');
+const isPoor = (m) => m.findings.includes('poor');
+const toothCat = (m) => (isPoor(m) ? 'poor' : catOf(m)); // 歯式図の色。予後不良は方針より優先して目立たせる
+const doneWhy = (m) => (m.history.filter((h) => h.kind === 'done').pop() || {}).memo || '';
+const isTreated = (m) => m.status === 'done' && TREATED_WHY.includes(doneWhy(m));
+const treatedOf = (pid) => doneOf(pid).filter(isTreated);
+const missingOf = (pid) => new Set(db.missing[pid] || []);
+const handOpen = (pid) => db.handoffs.filter((h) => h.patientId === pid && !h.done);
+const latest = (arr) => arr.reduce((a, x) => (!a || x.date >= a.date ? x : a), null);
+const lastSaid = (m) => latest(m.history.filter((x) => x.kind === 'explain' || x.kind === 're' || (x.kind === 'check' && x.re)));
+const lastSeen = (m) => latest(m.history.filter((x) => x.kind === 'explain' || x.kind === 're' || x.kind === 'check'));
+const lastCheck = (m) => latest(m.history.filter((x) => x.kind === 'check'));
+const saidCount = (m) => m.history.filter((x) => x.kind === 're' || (x.kind === 'check' && x.re)).length;
+// 次に確認する時期。決めていない歯は「最後に見てから2年」を目安にする
+function due(m) {
+  const l = lastSeen(m), base = l ? l.date : today(), t = today();
+  if (m.checkEvery === 'none') return { visit: false, none: true, state: 'ok', date: base, implicit: false }; // 期間の定めなし：お知らせしない
+  if (m.checkEvery === 'visit') return { visit: true, state: base < t ? 'over' : 'ok', date: base, implicit: false };
+  const date = addMonths(base, m.checkEvery ? +m.checkEvery : 24), n = daysBetween(t, date);
+  return { visit: false, state: n <= 0 ? 'over' : n <= 30 ? 'soon' : 'ok', date, implicit: !m.checkEvery };
+}
+const isDue = (m) => m.status === 'active' && due(m).state === 'over';
+function dueBadge(m) {
+  if (m.status !== 'active') return '';
+  const d = due(m);
+  if (d.state === 'over') return `<span class="bd due">確認の時期${d.visit ? '（来院のたび）' : d.implicit ? '（2年以上）' : ''}</span>`;
+  if (d.state === 'soon') return `<span class="bd">もうすぐ確認 ${jym(d.date)}</span>`;
+  return '';
+}
+function dueText(m) {
+  const d = due(m);
+  if (d.visit) return '来院のたびに確認';
+  if (d.none) return '確認の期間の定めなし';
+  return `${d.implicit ? '目安' : lbl(EVERY, m.checkEvery)}：次は ${jym(d.date)}`;
+}
+function toothMap(pid) {
+  const g = {};
+  for (const m of active(pid)) {
+    const c = toothCat(m), x = g[m.tooth] || (g[m.tooth] = { cat: c, m, n: 0, due: false });
+    x.n++; if (isDue(m)) x.due = true;
+    if (PRI[c] > PRI[x.cat]) { x.cat = c; x.m = m; }
+  }
+  // 治療済みの歯は、ほかに伝えてあることがないときだけ緑の丸済で出す
+  for (const m of treatedOf(pid)) if (!g[m.tooth]) g[m.tooth] = { cat: 'treated', m, n: 0, due: false };
+  // 待機中の歯は、待機をいちばん上に出す（前の記録は歯をタップすると見える）
+  for (const w of waitActive(pid)) g[w.tooth] = { ...(g[w.tooth] || { m: null, n: 0 }), cat: 'wait', w, due: false };
+  return g;
+}
+function shortOf(m) {
+  const f = m.findings.map(fById).filter(Boolean)[0];
+  return f ? f.short : (POLICY.find((p) => p.id === m.policy) || {}).short || '';
+}
+// 箱の数：歯ごとに1つの箱だけ（歯式図の色と同じ。予後不良が最優先）
+function boxCounts(pid) {
+  const b = { poor: 0, watch: 0, propose: 0, plan: 0 }, g = toothMap(pid);
+  for (const t in g) if (g[t].cat in b) b[g[t].cat]++;
+  b.treated = new Set(treatedOf(pid).map((m) => m.tooth)).size; // 治療した歯の本数（あとで別の記録がついても数える）
+  return b;
+}
+function counts(pid) {
+  const c = { poor: 0, watch: 0, propose: 0, plan: 0, treated: treatedOf(pid).length, due: 0, hand: handOpen(pid).length, all: 0 };
+  for (const m of active(pid)) { c[catOf(m)]++; c.all++; if (isDue(m)) c.due++; if (isPoor(m)) c.poor++; }
+  return c;
+}
+function findText(m) {
+  const f = m.findings.map((id) => (fById(id) || {}).label).filter(Boolean).join('・');
+  return (m.sites.length ? m.sites.join('・') + ' ' : '') + f;
+}
+function ifThenText(m) {
+  const w = lbl(whenAll(), m.ifThen.when), t = lbl(thenAll(), m.ifThen.then);
+  return t ? `${w ? w + ' → ' : ''}${t}` : '';
+}
+// 選んだ項目をつないで文にする（中身は先生が選んだものだけ。所見から方針を決めることはしない）
+function sentence(d) {
+  const out = [], site = d.sites.length ? d.sites.join('・') + 'に' : '';
+  d.findings.map(fById).filter(Boolean).forEach((f, i) => {
+    out.push((i === 0 && site && /あります$/.test(f.say) ? site : '') + f.say + '。');
+  });
+  const p = POLICY.find((x) => x.id === d.policy), th = thenAll().find((x) => x.id === d.then), wh = whenAll().find((x) => x.id === d.when);
+  if (p && p.say && !(p.id === 'plan' && th)) out.push(p.say + '。');
+  if (th) out.push((wh ? wh.label : '') + th.say + '。');
+  return out.join('');
+}
+function eventText(h, m) {
+  const r = lbl(RESULT, h.result);
+  switch (h.kind) {
+    case 'explain': return '説明した';
+    case 're': return '再説明した';
+    case 'check': return `確認${r ? '：' + r : 'した'}${h.re ? '・説明もした' : ''}`; // 様子は選ばなくても記録できる
+    case 'edit': return '内容を直した';
+    case 'done': { const tr = h.treat ? lbl(treatAll(), h.treat) : ''; return `済みにした${h.memo || tr ? `（${[h.memo, tr].filter(Boolean).join('・')}）` : ''}`; }
+    case 'reopen': return '元に戻した';
+    case 'toPlan': return '治療予定にした';
+    default: return h.kind;
+  }
+}
+const evClass = (h) => (h.kind === 'check' && (h.result === 'worse' || h.result === 'symptom') ? 'check warn' : h.kind);
+// 全患者の横断（フォロー用）
+function allActive() { return db.memos.filter((m) => m.status === 'active' && pById(m.patientId)); }
+function clinic() {
+  const ms = allActive();
+  return { due: ms.filter(isDue), propose: ms.filter((m) => catOf(m) === 'propose'), plan: ms.filter((m) => catOf(m) === 'plan'),
+    hand: db.handoffs.filter((h) => !h.done && pById(h.patientId)),
+    wait: (db.waits || []).filter((w) => w.status === 'active' && pById(w.patientId) && waitState(w) !== 'ok'),
+    waiting: (db.waits || []).filter((w) => w.status === 'active' && pById(w.patientId)),
+    warn: ms.filter((m) => { const lc = lastCheck(m); return lc && (lc.result === 'worse' || lc.result === 'symptom'); }) };
+}
+
+/* ================= 画面 ================= */
+const state = { view: 'list', pid: null, q: '', lf: 'all', sort: 'no', tab: 'chart', cf: '', tl: 0, ff: 'wait' };
+let sheet = null, draft = null;
+const patient = () => pById(state.pid);
+
+function render() {
+  const s = db.settings, c = clinic();
+  document.documentElement.style.fontSize = s.font === 'l' ? '112.5%' : '';
+  const v = state.view === 'patient' && !patient() ? 'list' : state.view;
+  const nav = [['list', '患者', ''], ['follow', 'フォロー', c.hand.length + c.wait.length]];
+  const cur = v === 'patient' ? 'list' : v;
+  $('#app').innerHTML = `
+  <header class="top"><div class="topin">
+    <span class="ttl">歯の状況把握</span><span class="sp"></span>
+    <label class="me"><span>記録<span class="wide">する人</span></span> <select id="me">${s.staff.map((n) => `<option ${n === s.me ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+    <nav class="nav" aria-label="画面の切り替え">${nav.map(([k, l, n]) => `<button class="${cur === k ? 'on' : ''}" data-act="nav" data-v="${k}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav>
+    <button class="gear ${v === 'settings' ? 'on' : ''}" data-act="nav" data-v="settings" aria-label="設定"><span class="gi" aria-hidden="true">⚙</span><small>設定</small></button>
+  </div></header>
+  <main>${backupNag(v)}${v === 'patient' ? patientView() : v === 'list' ? listView() : v === 'follow' ? followView() : v === 'settings' ? settingsView() : listView()}</main>`;
+  if (v === 'list') renderRows();
+}
+
+/* ---------- 今日 ---------- */
+function pointLines(pid, max) {
+  const out = [];
+  for (const h of handOpen(pid)) out.push(`<li><span class="k"><span class="bd propose">申し送り</span></span><span>${h.tooth ? `<b>${tname(h.tooth)}</b>` : ''}${esc(h.text)}<span class="say">（${esc(h.by)}・${jdate(h.date)}）</span></span></li>`);
+  const ms = active(pid), seen = new Set();
+  const push = (m, tag, cls) => {
+    if (seen.has(m.id)) return; seen.add(m.id);
+    const lc = lastCheck(m), warn = lc && (lc.result === 'worse' || lc.result === 'symptom') ? ` <span class="bd plan">前回：${lbl(RESULT, lc.result)}</span>` : '';
+    out.push(`<li><span class="k"><span class="bd ${cls}">${tag}</span></span><span><b>${tname(m.tooth)}</b>${esc(findText(m) || lbl(POLICY, m.policy))}${warn}<span class="say" style="display:block">「${esc(m.said)}」</span></span></li>`);
+  };
+  ms.filter((m) => catOf(m) === 'plan').forEach((m) => push(m, '治療予定', 'plan'));
+  ms.filter(isDue).sort((x, y) => x.tooth - y.tooth).forEach((m) => push(m, catOf(m) === 'propose' ? '返事を聞く' : '確認する', catOf(m) === 'propose' ? 'propose' : 'due'));
+  if (max && out.length > max) return out.slice(0, max).join('') + `<li><span class="k"></span><span class="say">ほか ${out.length - max}件</span></li>`;
+  return out.join('');
+}
+function todayView() {
+  const d = new Date(), wd = '日月火水木金土'[d.getDay()], c = clinic();
+  const ids = db.today.ids.filter(pById), seen = new Set(db.today.seen);
+  const order = ids.filter((i) => !seen.has(i)).concat(ids.filter((i) => seen.has(i)));
+  const cards = order.map((id) => {
+    const p = pById(id), k = counts(id), pts = pointLines(id);
+    return `<div class="tcard ${seen.has(id) ? 'seen' : ''}">
+      <div class="hd"><span class="nm">${esc(p.name)} 様<small>No.${esc(p.chartNo || '—')}　${age(p.birth)}</small></span>
+        ${k.due ? `<span class="bd due">確認 ${k.due}</span>` : ''}${k.plan ? `<span class="bd plan">治療予定 ${k.plan}</span>` : ''}${k.hand ? `<span class="bd propose">申し送り ${k.hand}</span>` : ''}</div>
+      ${seen.has(id) ? '' : pts ? `<ul class="pts">${pts}</ul>` : `<p class="note" style="margin:8px 0 0">とくに確認する項目はありません（伝えてあること ${k.all}件）</p>`}
+      <div class="acts"><button class="btn primary small" data-act="open" data-pid="${id}">開く</button>
+        <button class="btn small" data-act="open" data-pid="${id}" data-tab="summary">1枚まとめ</button>
+        <button class="btn small" data-act="seen" data-pid="${id}">${seen.has(id) ? '済みを取り消す' : '済み'}</button><span class="sp"></span>
+        <button class="btn small" data-act="todayToggle" data-pid="${id}">一覧から外す</button></div></div>`;
+  }).join('');
+  return `
+  <div class="dayhead"><b>${d.getMonth() + 1}月${d.getDate()}日（${wd}）</b><span class="note">今日みる患者 ${ids.length}人${seen.size ? `・済み ${[...seen].filter((i) => ids.includes(i)).length}人` : ''}</span><span class="sp"></span>
+    <button class="btn primary" data-act="pickToday">＋ 今日みる患者を選ぶ</button></div>
+  ${cards || '<div class="empty">今日みる患者を選ぶと、ここに「確認する歯・治療予定・申し送り」がまとまって出ます。朝の打ち合わせで一覧を見て、同じ言葉で説明できます。</div>'}
+  <h2>医院ぜんたい<small>タップで一覧へ</small></h2>
+  <div class="tiles">
+    <button class="tile due" data-act="follow" data-f="due"><b>${c.due.length}</b><span>確認の時期</span></button>
+    <button class="tile propose" data-act="follow" data-f="propose"><b>${c.propose.length}</b><span>提案して検討中</span></button>
+    <button class="tile plan" data-act="follow" data-f="plan"><b>${c.plan.length}</b><span>治療予定</span></button>
+    <button class="tile" data-act="follow" data-f="hand"><b>${c.hand.length}</b><span>申し送り（未完了）</span></button>
+  </div>
+  <p class="note">データはこの端末の中だけに保存されます（ネットには送りません）。週に1回は「設定 → 書き出す」でバックアップを取ってください。「今日みる患者」は日付が変わると空になります。</p>`;
+}
+
+/* ---------- 患者一覧 ---------- */
+// 最後の書き出しから7日以上たったら、一覧の上でお知らせ
+function backupNag(v) {
+  if (v !== 'list' && v !== 'follow') return '';
+  if (!db.patients.length) return '';
+  const last = db.settings.lastExport, n = last ? daysBetween(last, today()) : null;
+  if (n !== null && n < 7) return '';
+  return `<div class="hand" style="margin-bottom:12px"><div class="hh"><b>${n === null ? 'まだバックアップを書き出していません' : `最後のバックアップから${n}日たちました`}</b>
+    <button class="btn small" data-act="nav" data-v="settings">書き出す</button></div>
+    <div class="note">この端末が壊れたときに戻せるのは、書き出したところまでです。</div></div>`;
+}
+function listView() {
+  const f = [['all', 'すべて'], ['due', '確認の時期'], ['plan', '治療予定'], ['propose', '検討中'], ['hand', '申し送り']];
+  return `
+  <div class="listhead">
+    <input type="search" id="q" placeholder="名前・ふりがな・カルテ番号で探す" value="${esc(state.q)}" autocomplete="off">
+    <button class="btn primary" data-act="addPatient">＋ 患者を追加</button>
+  </div>
+  <div class="filters">${f.map(([k, l]) => `<button class="chip sm ${state.lf === k ? 'on' : ''}" data-act="lf" data-v="${k}">${l}</button>`).join('')}
+    <span class="sp"></span><select id="sort" aria-label="並び順"><option value="no" ${state.sort === 'no' ? 'selected' : ''}>カルテ番号順</option>
+    <option value="due" ${state.sort === 'due' ? 'selected' : ''}>確認が多い順</option><option value="new" ${state.sort === 'new' ? 'selected' : ''}>最近記録した順</option></select></div>
+  <div id="rows"></div>
+  <p class="note" style="margin-top:14px">データはこの端末の中だけに保存されます（ネットには送りません）。週に1回は「設定 → 書き出す」でバックアップを取ってください。</p>`;
+}
+function renderRows() {
+  const q = norm(state.q.trim()), tset = new Set(db.today.ids);
+  const lastUp = (p) => Math.max(p.updatedAt || 0, ...db.memos.filter((m) => m.patientId === p.id).map((m) => m.updatedAt || 0));
+  let ps = db.patients.map((p) => ({ p, c: counts(p.id) }))
+    .filter(({ p }) => !q || [p.name, p.kana, p.chartNo].some((v) => norm(v).includes(q)))
+    .filter(({ p, c }) => state.lf === 'all' || (state.lf === 'today' ? tset.has(p.id) : c[state.lf] > 0));
+  ps.sort((x, y) => state.sort === 'due' ? (y.c.due - x.c.due) || (y.c.plan - x.c.plan)
+    : state.sort === 'new' ? lastUp(y.p) - lastUp(x.p)
+    : (x.p.chartNo || '').localeCompare(y.p.chartNo || '', 'ja', { numeric: true }));
+  $('#rows').innerHTML = ps.length ? ps.map(({ p, c }) => {
+    const bd = (c.due ? `<span class="bd due">確認 ${c.due}</span>` : '')
+      + ['poor', 'plan', 'propose', 'watch'].filter((k) => c[k]).map((k) => `<span class="bd ${k}">${CAT_SHORT[k]} ${c[k]}</span>`).join('')
+      + (c.hand ? `<span class="bd">申し送り ${c.hand}</span>` : '');
+    return `<div class="prow"><button class="go" data-act="open" data-pid="${p.id}"><span class="cno">${esc(p.chartNo || '—')}</span>
+      <span class="pn">${esc(p.name)}<small>${age(p.birth)}</small></span><span class="badges">${bd || '<span class="bd">記録なし</span>'}</span></button></div>`;
+  }).join('') : (db.patients.length ? '<div class="empty">当てはまる患者がいません</div>' : '<div class="empty">まだ患者がいません。「＋ 患者を追加」から入れます。使い方を試すときは、右上の設定 →「見本を入れて試す」。</div>');
+}
+
+/* ---------- フォロー（医院ぜんたい） ---------- */
+function followView() {
+  const c = clinic(), f = state.ff;
+  // 医院ぜんたいで気にかけるものだけ（確認の時期・検討中・治療予定は患者画面で見るので出さない）
+  const tabs = [['wait', '待機明け', c.wait.length], ['waiting', '待機中', c.waiting.length], ['warn', '前回が進行・症状あり', c.warn.length], ['hand', '申し送り', c.hand.length]];
+  const help = { due: '決めた時期（決めていない歯は2年）を過ぎて、まだ確認していない歯です。古い順。', propose: '提案して返事を待っている歯です。提案した日が古い順。',
+    plan: '治療予定の歯です。', hand: 'まだ済んでいない申し送りです。', wait: '待機が明けた歯と、明けるまで2週間以内の歯です。明ける日が近い順。', waiting: '待機中の歯すべてです（明けた歯も含む）。明ける日が近い順。', warn: 'いちばん新しい確認の結果が「進行あり」「症状あり」だった歯です。次の来院で見落とさないために。' }[f];
+  let rows = '';
+  if (f === 'wait' || f === 'waiting') {
+    rows = c[f].slice().sort((a, b) => (waitEnd(a) < waitEnd(b) ? -1 : 1)).map((w) => { const p = pById(w.patientId), nx = nextStep(w);
+      return `<div class="frow"><span class="a" data-act="open" data-pid="${p.id}" data-t="${w.tooth}" role="button" tabindex="0"><b>${esc(p.name)} 様</b>　${tname(w.tooth)}　${waitBadge(w)}
+        <small>${esc(w.after)}後 ${waitLen(w)}（${jdate(w.start)}〜${jdate(waitEnd(w))}）→ 次：${esc(w.next)}</small></span>
+        ${nx ? `<button class="btn small" data-act="waitNext" data-id="${w.id}">次の段階へ（${esc(nx.after)} → ${nx.months}か月）</button>` : `<button class="btn small" data-act="waitEnd" data-id="${w.id}">待機を終える</button>`}</div>`; }).join('');
+  } else if (f === 'hand') {
+    rows = c.hand.sort((a, b) => (a.date < b.date ? -1 : 1)).map((h) => { const p = pById(h.patientId);
+      return `<button class="frow" data-act="open" data-pid="${p.id}"><span class="a"><b>${esc(p.name)} 様</b>${h.tooth ? `　${tname(h.tooth)}` : ''}<small>${esc(h.text)}</small></span><span class="note">${esc(h.by)}・${agoText(h.date)}</span></button>`; }).join('');
+  } else {
+    const key = (m) => (lastSeen(m) || { date: '' }).date;
+    rows = c[f].slice().sort((a, b) => (key(a) < key(b) ? -1 : 1)).map((m) => { const p = pById(m.patientId), l = lastSeen(m);
+      return `<button class="frow" data-act="open" data-pid="${p.id}" data-t="${m.tooth}"><span class="a"><b>${esc(p.name)} 様</b>　${tname(m.tooth)} ${esc(findText(m))}
+        <small>「${esc(m.said)}」</small></span><span class="bd ${catOf(m)}">${lbl(POLICY, m.policy)}</span>${f === 'warn' ? `<span class="bd poor">前回：${lbl(RESULT, lastCheck(m).result)}${lastCheck(m).memo ? '（' + esc(lastCheck(m).memo) + '）' : ''}</span>` : f === 'due' ? '' : dueBadge(m)}
+        <span class="note">${l ? `最後に見た日 ${agoText(l.date)}` : ''}</span></button>`; }).join('');
+  }
+  return `<h2 style="margin-top:0">フォロー<small>全部の患者から、気にかける歯を集めた一覧</small></h2>
+  <div class="filters">${tabs.map(([k, l, n]) => `<button class="chip sm ${f === k ? 'on' : ''}" data-act="follow" data-f="${k}">${l} ${n}</button>`).join('')}</div>
+  <p class="note" style="margin:8px 2px 0">${help}</p>
+  ${rows || '<div class="empty">ありません</div>'}`;
+}
+
+/* ---------- 患者画面 ---------- */
+function patientView() {
+  const p = patient(), inToday = db.today.ids.includes(p.id);
+  const tabs = [['chart', '歯式図'], ['timeline', '時系列'], ['summary', '1枚まとめ']];
+  return `
+  <div class="phead">
+    <button class="btn" data-act="back">‹ 戻る</button>
+    <div class="who"><b>${esc(p.name)} 様</b><span>No.${esc(p.chartNo || '—')}　${age(p.birth)}</span>${p.note ? `<div>${esc(p.note)}</div>` : ''}</div>
+    <button class="btn" data-act="editPatient">患者情報</button>
+    <button class="btn primary" data-act="newMemo">＋ 説明を記録</button>
+  </div>
+  <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${state.tab === k}" class="${state.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${l}</button>`).join('')}</div>
+  ${state.tab === 'timeline' ? timelineTab(p) : state.tab === 'summary' ? summaryTab(p) : chartTab(p)}`;
+}
+function handBox(p) {
+  const open = handOpen(p.id), done = db.handoffs.filter((h) => h.patientId === p.id && h.done);
+  const item = (h) => `<div class="hitem ${h.done ? 'done' : ''}"><div class="tx">${h.tooth ? `<b>${tname(h.tooth)}</b>　` : ''}${esc(h.text)}
+    <small>${esc(h.by)}・${jdate(h.date)}${h.done ? `　→ 済み ${esc(h.doneBy)}・${jdate(h.doneDate)}` : ''}</small></div>
+    <button class="btn small" data-act="handDone" data-id="${h.id}">${h.done ? '戻す' : '済み'}</button></div>`;
+  return `<div class="hand"><div class="hh"><b>申し送り${open.length ? `（${open.length}）` : ''}</b><button class="btn small" data-act="addHand">＋ 書く</button></div>
+    ${open.map(item).join('') || '<div class="note" style="margin-top:4px">次に診る人へ伝えたいことを書けます。</div>'}
+    ${done.length ? `<details style="margin-top:6px"><summary class="note" style="cursor:pointer;min-height:36px;display:flex;align-items:center">済んだ申し送り（${done.length}）</summary>${done.map(item).join('')}</details>` : ''}</div>`;
+}
+function chartTab(p) {
+  const c = counts(p.id), cf = state.cf;
+  const order = ['plan', 'propose', 'watch'];
+  const all = active(p.id).sort((a, b) => (isDue(b) - isDue(a)) || order.indexOf(catOf(a)) - order.indexOf(catOf(b)) || a.tooth - b.tooth);
+  const g = toothMap(p.id), b = boxCounts(p.id);
+  const list = cf === 'treated' ? treatedOf(p.id).sort((a, b) => a.tooth - b.tooth) : all.filter((m) => !cf || (g[m.tooth] && g[m.tooth].cat === cf));
+  const done = doneOf(p.id);
+  const tile = (k, n, l) => `<button class="tile ${k} ${cf === k ? 'on' : ''}" data-act="cf" data-v="${k}" aria-pressed="${cf === k}"><b>${n}</b><span>${l}</span></button>`;
+  return `
+  ${handBox(p)}
+  <div class="tiles five" style="margin-top:12px">${tile('poor', b.poor, '予後不良')}${tile('watch', b.watch, '経過観察中')}${tile('propose', b.propose, '提案して検討中')}${tile('plan', b.plan, '治療予定')}${tile('treated', b.treated, '治療済み')}</div>
+  ${chart(p.id, { filter: cf })}
+  <div class="legend">${['poor', 'watch', 'propose', 'plan', 'treated'].map((k) => `<span><i class="${k}"></i>${k === 'watch' ? 'obs＝経過観察中（observation）' : k === 'treated' ? '<span class="maru sm">済</span> 治療済み' : (CAT_MARK[k] ? CAT_MARK[k] + ' ' : '') + CAT_NAME[k]}</span>`).join('')}<span><i class="miss"></i>× 欠損</span><span><b class="duepill">確認</b>＝確認の時期が来た歯</span><span><i class="wait"></i>待機中（抜歯後・埋入後など）</span><span><b class="soonpill">あと○日</b>＝待機明けまで2週間以内</span><span><b class="duepill">時期</b>＝待機が明けた</span><span>歯をタップ → 記録・確認</span></div>
+  <p class="note">箱は歯の本数です。今の状態の4つは、1本の歯が1つの箱だけに入ります（予後不良が最優先）。「治療済み」は治療した歯の本数です。緑の丸済は「済みにする」で理由を「治療した・抜歯した」にした歯です。</p>
+  <h2>伝えてあること<small>${cf ? `「${cf === 'due' ? '確認の時期' : CAT_NAME[cf]}」だけ表示中` : '確認の時期のものが上'}</small>${cf ? ' <button class="btn small" data-act="cf" data-v="">すべて表示</button>' : ''}</h2>
+  ${list.length ? list.map((m) => toldCard(m)).join('') : `<div class="empty">${all.length || cf === 'treated' ? '当てはまる記録はありません。' : 'まだ記録がありません。歯をタップするか「＋ 説明を記録」から入れます。'}</div>`}
+  ${done.length && cf !== 'treated' ? `<details class="donebox"><summary>済み（${done.length}件）</summary>${done.map((m) => toldCard(m)).join('')}</details>` : ''}`;
+}
+function toldCard(m, full = false) {
+  const cat = catOf(m), tc = toothCat(m), l = lastSaid(m), n = saidCount(m), lc = lastCheck(m);
+  const react = m.reaction && m.reaction !== 'agree' ? `<span class="bd ${m.reaction === 'think' ? 'propose' : ''}">${lbl(REACT, m.reaction)}</span>` : '';
+  const warn = m.status === 'active' && lc && (lc.result === 'worse' || lc.result === 'symptom') ? `<span class="bd poor">前回の確認：${lbl(RESULT, lc.result)}</span>` : '';
+  const dh = m.status === 'done' ? doneH(m) : null, tr = treatOf(m);
+  const first = m.history.find((h) => h.kind === 'explain');
+  const flow = isTreated(m) ? `<div class="flow">${first ? `${jdate(first.date)} ${esc(findText(m) || lbl(POLICY, m.policy))}を説明 → ` : ''}<b>${jdate(dh.date)} ${esc(tr ? tr.label : dh.memo)}</b>${tr ? 'で治療' : ''}（${esc(dh.by)}）</div>` : '';
+  const head = `<div class="hd"><span class="no">${tname(m.tooth)}</span><span class="fd">${esc(findText(m))}</span>${isTreated(m) ? '<span class="bd treated">治療済み</span>' : ''}<span class="bd ${cat}">${lbl(POLICY, m.policy)}</span>${react}${warn}${dueBadge(m)}</div>
+    ${flow}${m.said ? `<div class="say">「${esc(m.said)}」</div>` : ''}
+    <div class="sub">${ifThenText(m) ? `<span>${esc(ifThenText(m))}</span>` : ''}
+      ${l ? `<span>最後に伝えた日 ${jdate(l.date)}（${esc(l.by)}・${agoText(l.date)}）${n ? `・くり返し ${n}回` : ''}</span>` : ''}
+      ${m.status === 'active' ? `<span>${dueText(m)}</span>` : ''}
+      ${dh && !isTreated(m) ? `<span>済み ${jdate(dh.date)}：${esc(dh.memo)}</span>` : ''}</div>`;
+  if (!full) return `<button class="told ${m.status === 'done' ? 'done' : tc}" data-act="tooth" data-t="${m.tooth}">${head}</button>`;
+  const hist = [...m.history].sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map((h) => `<li class="${evClass(h)}"><span class="d">${jdate(h.date)}</span>${esc(eventText(h, m))}　<span class="w">${esc(h.by)}</span>${h.kind === 'check' && h.memo ? `<span class="q">${esc(h.memo)}</span>` : ''}</li>`).join('');
+  const acts = m.status === 'active'
+    ? `<button class="btn primary" data-act="quick" data-id="${m.id}">変化なし・今日も説明した</button>
+       <button class="btn" data-act="check" data-id="${m.id}">確認をくわしく記録</button>
+       <button class="btn" data-act="edit" data-id="${m.id}">直す</button>
+       <button class="btn" data-act="done" data-id="${m.id}">済みにする</button>
+       <span class="acts-break"></span>
+       ${catOf(m) !== 'plan' ? `<button class="btn" data-act="toPlan" data-id="${m.id}">治療予定にする</button>` : ''}
+       <button class="btn" data-act="toTreated" data-id="${m.id}"><span class="maru">済</span> 治療済みにする</button>`
+    : `<button class="btn" data-act="reopen" data-id="${m.id}">元に戻す</button>`;
+  return `<div class="told ${m.status === 'done' ? 'done' : tc}">${head}<div class="acts">${acts}</div><ol class="tl mini">${hist}</ol></div>`;
+}
+function chart(pid, o = {}) {
+  const g = toothMap(pid), miss = missingOf(pid), pick = o.pick;
+  const cell = (t) => {
+    const n = t % 10, d = g[t], isMiss = miss.has(t) && !(d && d.cat === 'wait');
+    const cls = isMiss ? 'miss' : d ? d.cat : '';
+    const inner = (d && !isMiss && CAT_WORD[d.cat] ? `<b>${n}</b><small class="pbig">${CAT_WORD[d.cat]}</small>`
+      : `<b>${n}</b><i class="${!isMiss && d && CAT_MARK[d.cat].length > 1 ? 'word' : ''}">${isMiss ? '×' : d && d.cat === 'treated' ? '<span class="maru">済</span>' : d ? CAT_MARK[d.cat] : ''}</i><small>${d && !isMiss ? esc(d.cat === 'treated' ? treatShort(d.m) : shortOf(d.m)) : ''}</small>`)
+      + (d && d.cat === 'wait' && !pick ? waitPill(d.w) : d && d.due && !pick ? '<span class="dot" aria-label="確認の時期">確認</span>' : '') + (d && d.n > 1 ? `<span class="cnt">${d.n}</span>` : '');
+    const label = `${tname(t)}${isMiss ? ' 欠損' : d ? ' ' + CAT_NAME[d.cat] : ''}`;
+    if (pick) return `<button class="t ${cls}${pick.includes(t) ? ' sel' : ''}" data-act="pick" data-t="${t}" aria-label="${label}" aria-pressed="${pick.includes(t)}" ${isMiss ? 'disabled' : ''}>${inner}</button>`;
+    const dim = o.filter && !(d && d.cat === o.filter) && !(o.filter === 'treated' && treatedOf(pid).some((m) => m.tooth === t)) ? ' dim' : '';
+    return `<button class="t ${cls}${dim}" data-act="tooth" data-t="${t}" aria-label="${label}">${inner}</button>`;
+  };
+  const half = (up, lo, a) => `<div class="half"><div class="hl">${a}</div>
+    <div class="row up">${up.map(cell).join('')}</div><div class="row lo">${lo.map(cell).join('')}</div></div>`;
+  return `<div class="chart">${half(UP_R, LO_R, '患者さんの右側（上・下）')}${half(UP_L, LO_L, '患者さんの左側（上・下）')}</div>`;
+}
+function timelineTab(p) {
+  const ev = [];
+  for (const m of db.memos.filter((x) => x.patientId === p.id)) for (const h of m.history) ev.push({ date: h.date, tooth: m.tooth, h, m });
+  for (const h of db.handoffs.filter((x) => x.patientId === p.id)) ev.push({ date: h.date, tooth: h.tooth, hand: h });
+  for (const w of waitsOf(p.id)) { ev.push({ date: w.start, tooth: w.tooth, wait: w, txt: `${w.after} → ${waitLen(w)}待機（次：${w.next}）`, by: w.by });
+    if (w.status === 'done') ev.push({ date: w.doneDate, tooth: w.tooth, wait: w, txt: `待機を終えた（${w.after}後）`, by: w.doneBy }); }
+  const teeth = [...new Set(ev.map((e) => e.tooth).filter(Boolean))].sort((a, b) => a - b);
+  const list = ev.filter((e) => !state.tl || e.tooth === state.tl).sort((a, b) => (a.date < b.date ? 1 : -1));
+  let html = '', ym = '';
+  for (const e of list) {
+    const k = e.date.slice(0, 7);
+    if (k !== ym) { html += `${ym ? '</ol>' : ''}<div class="ym">${jym(e.date)}</div><ol class="tl">`; ym = k; }
+    if (e.wait) html += `<li class="hand"><span class="d">${jdate(e.date)}</span><b>${tname(e.tooth)}</b>　${esc(e.txt)}　<span class="w">${esc(e.by)}</span></li>`;
+    else if (e.hand) html += `<li class="hand"><span class="d">${jdate(e.date)}</span>${e.tooth ? `<b>${tname(e.tooth)}</b>　` : ''}申し送り　<span class="w">${esc(e.hand.by)}</span><span class="q">${esc(e.hand.text)}</span></li>`;
+    else html += `<li class="${evClass(e.h)}"><span class="d">${jdate(e.date)}</span><b>${tname(e.tooth)}</b>　${esc(eventText(e.h, e.m))}　<span class="w">${esc(e.h.by)}</span>
+      ${e.h.kind === 'explain' ? `<span class="q">${esc(findText(e.m))}　「${esc(e.m.said)}」</span>` : ''}${e.h.kind === 'check' && e.h.memo ? `<span class="q">${esc(e.h.memo)}</span>` : ''}</li>`;
+  }
+  if (ym) html += '</ol>';
+  return `<div class="filters"><button class="chip sm ${!state.tl ? 'on' : ''}" data-act="tl" data-v="0">すべての歯</button>
+    ${teeth.map((t) => `<button class="chip sm ${state.tl === t ? 'on' : ''}" data-act="tl" data-v="${t}">${tname(t)}</button>`).join('')}</div>
+  ${html || '<div class="empty">まだ記録がありません。</div>'}
+  <p class="note">新しい順。いつ・誰が・何を伝え、確認でどうだったかを並べています。</p>`;
+}
+function focusOf(pid) {
+  return active(pid).filter((m) => { const lc = lastCheck(m); return catOf(m) === 'plan' || isDue(m) || (lc && (lc.result === 'worse' || lc.result === 'symptom')); })
+    .sort((a, b) => PRI[catOf(b)] - PRI[catOf(a)] || a.tooth - b.tooth);
+}
+function summaryTab(p) {
+  const c = counts(p.id), ms = active(p.id).sort((a, b) => a.tooth - b.tooth), fo = focusOf(p.id), ho = handOpen(p.id);
+  const why = (m) => { const lc = lastCheck(m), w = []; if (catOf(m) === 'plan') w.push('治療予定'); if (isDue(m)) w.push(catOf(m) === 'propose' ? '返事を聞く' : '確認の時期');
+    if (lc && (lc.result === 'worse' || lc.result === 'symptom')) w.push(`前回：${lbl(RESULT, lc.result)}`); return w.join('・'); };
+  return `<div class="sum">
+    <div class="st"><b>${esc(p.name)} 様</b><span class="note">No.${esc(p.chartNo || '—')}　${age(p.birth)}　${jdate(today())} 時点</span></div>
+    <div class="st" style="margin-top:6px">${((b) => `<span class="bd poor">予後不良 ${b.poor}</span><span class="bd watch">経過観察中 ${b.watch}</span><span class="bd propose">検討中 ${b.propose}</span><span class="bd plan">治療予定 ${b.plan}</span>`)(boxCounts(p.id))}<span class="bd treated">治療済み ${c.treated}</span><span class="bd due">確認の時期 ${c.due}</span><span class="bd">欠損 ${missingOf(p.id).size}</span></div>
+    <h3>今日とくに見る歯</h3>
+    ${fo.length ? `<ul class="focus">${fo.map((m) => `<li><b>${tname(m.tooth)}</b>　${esc(findText(m) || lbl(POLICY, m.policy))}　<span class="bd ${catOf(m) === 'plan' ? 'plan' : 'due'}">${why(m)}</span><br><span class="note">「${esc(m.said)}」</span></li>`).join('')}</ul>` : '<div class="note">とくにありません。</div>'}
+    ${ho.length ? `<h3>申し送り</h3><ul class="focus">${ho.map((h) => `<li>${h.tooth ? `<b>${tname(h.tooth)}</b>　` : ''}${esc(h.text)} <span class="note">（${esc(h.by)}・${jdate(h.date)}）</span></li>`).join('')}</ul>` : ''}
+    <h3>伝えてあること（${ms.length}件）</h3>
+    <div class="srow h"><div>歯</div><div>何があるか</div><div>方針</div><div>伝えた言葉</div><div>最後に伝えた日・次回</div></div>
+    ${ms.map((m) => { const l = lastSaid(m); return `<div class="srow"><div><b>${tname(m.tooth)}</b></div><div>${esc(findText(m) || '—')}</div>
+      <div>${lbl(POLICY, m.policy)}${ifThenText(m) ? `<br><span class="note">${esc(ifThenText(m))}</span>` : ''}${m.reaction !== 'agree' ? `<br><span class="note">受け止め：${lbl(REACT, m.reaction)}</span>` : ''}</div>
+      <div>「${esc(m.said)}」</div><div>${l ? `${jdate(l.date)} ${esc(l.by)}` : '—'}<br><span class="note">${dueText(m)}</span></div></div>`; }).join('') || '<div class="note" style="padding:8px 0">記録なし</div>'}
+    <div class="acts noprint"><button class="btn primary" data-act="copySum">文章でコピー（カルテに貼る用）</button>
+      ${inFrame ? '' : '<button class="btn" data-act="print">印刷する</button>'}</div>
+    ${inFrame ? '<p class="note noprint">このリンクの試作では印刷できません（本番のアプリでは印刷できます）。</p>' : ''}
+  </div>`;
+}
+function summaryText(p) {
+  const L = [`${p.name} 様（No.${p.chartNo || '—'}）${jdate(today())} 時点`], fo = focusOf(p.id), ho = handOpen(p.id);
+  if (fo.length) { L.push('', '■ 今日とくに見る歯'); fo.forEach((m) => L.push(`・${tname(m.tooth)} ${findText(m) || lbl(POLICY, m.policy)}`)); }
+  if (ho.length) { L.push('', '■ 申し送り'); ho.forEach((h) => L.push(`・${h.tooth ? tname(h.tooth) + ' ' : ''}${h.text}（${h.by}）`)); }
+  L.push('', '■ 伝えてあること');
+  active(p.id).sort((a, b) => a.tooth - b.tooth).forEach((m) => { const l = lastSaid(m);
+    L.push(`・${tname(m.tooth)} ${findText(m)}／${lbl(POLICY, m.policy)}${ifThenText(m) ? '（' + ifThenText(m) + '）' : ''}`, `　「${m.said}」${l ? ` ${jdate(l.date)} ${l.by}` : ''}`); });
+  return L.join('\n');
+}
+
+/* ================= 下から出る画面 ================= */
+function openSheet(kind, data = {}) { sheet = { kind, ...data }; renderSheet(true); }
+function closeSheet() { sheet = null; draft = null; $('#sheet').hidden = true; $('#sheet').innerHTML = ''; }
+function renderSheet(fresh) {
+  if (!sheet) return closeSheet();
+  const old = $('#sheet .sh-body'), top = !fresh && old ? old.scrollTop : 0;
+  const v = SHEETS[sheet.kind]();
+  $('#sheet').innerHTML = `<div class="sheetwrap" data-act="shade"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(v.title)}">
+    <div class="sh-head"><b>${esc(v.title)}</b><button class="x" data-act="close" aria-label="閉じる">×</button></div>
+    <div class="sh-body">${v.body}</div>${v.foot ? `<div class="sh-foot">${v.foot}</div>` : ''}</div></div>`;
+  $('#sheet').hidden = false;
+  $('#sheet .sh-body').scrollTop = top;
+}
+const chips = (k, arr, multi) => arr.map((o) => {
+  const id = typeof o === 'string' ? o : o.id, label = typeof o === 'string' ? o : o.label;
+  const on = multi ? draft[k].includes(id) : draft[k] === id;
+  return `<button class="chip ${on ? 'on' : ''}" data-act="chip" data-k="${k}" data-v="${esc(id)}" aria-pressed="${on}">${esc(label)}</button>`;
+}).join('');
+const staffSelect = (id, v) => `<select id="${id}">${db.settings.staff.map((n) => `<option ${n === v ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>`;
+const teethTitle = (ts) => ts.length ? ts.slice().sort((a, b) => a - b).map(tname).join('・') : '';
+
+// 歯の待機の流れ（抜歯 → 4か月 → 埋入 → …）と操作
+function waitCard(pid, t) {
+  const ws = waitsOf(pid, t).sort((a, b) => (a.start < b.start ? -1 : 1));
+  if (!ws.length) return '';
+  const cur = ws.find((w) => w.status === 'active');
+  const lines = ws.map((w) => `${jdate(w.start)} ${esc(w.after)} → ${waitLen(w)}待機${w.status === 'done' ? `（${jdate(w.doneDate)} 終了）` : ''}`);
+  if (cur) lines.push(`<b style="color:var(--wait)">${jdate(waitEnd(cur))} ごろ ${esc(cur.next)}</b>`);
+  let acts = '';
+  if (cur) { const nx = nextStep(cur);
+    acts = `<div class="acts">${nx ? `<button class="btn primary" data-act="waitNext" data-id="${cur.id}">次の段階へ（${esc(nx.after)} → ${nx.months === 'd' ? nx.days + '日' : nx.months + 'か月'}待機）</button>` : ''}
+      <button class="btn ${nx ? '' : 'primary'}" data-act="waitEnd" data-id="${cur.id}">待機を終える</button>
+      <button class="btn" data-act="waitDel" data-id="${cur.id}">記録を取り消す</button></div>`; }
+  return `<div class="waitcard"><div class="hd"><b>待機</b>　${cur ? `${esc(cur.after)}後 ${waitLen(cur)} → 次：${esc(cur.next)}　${waitBadge(cur)}` : '終わった待機'}</div>
+    <div class="wflow">${lines.join('<br>')}</div><span class="note">記録：${esc((cur || ws[ws.length - 1]).by)}</span>${acts}</div>`;
+}
+const nextStep = (w) => { const tp = waitTplAll().find((x) => x.id === w.tpl); return tp && tp.steps[w.step + 1] ? tp.steps[w.step + 1] : null; };
+function addWait(pid, t, o) {
+  const w = { id: uid(), patientId: pid, tooth: t, after: o.after, months: o.months, days: o.days || '', next: o.next, start: o.start || today(), by: o.by || db.settings.me,
+    tpl: o.tpl || '', step: o.step || 0, status: 'active', doneDate: '', doneBy: '' };
+  db.waits.push(w); return w;
+}
+
+const SHEETS = {
+  // 待機を記録する
+  wait() {
+    const d = draft, tps = waitTplAll();
+    const end = d.after && d.next && d.months && (d.months !== 'd' || +d.days > 0) ? waitEnd(d) : '';
+    const isOn = (k, v) => (k === 'after' ? d.afters.includes(v) : d[k] === v);
+    const opt = (k, arr) => arr.map((v) => `<button class="chip ${isOn(k, v) ? 'on' : ''}" data-act="wchip" data-k="${k}" data-v="${esc(v)}">${esc(v)}</button>`).join('');
+    const afters = WAIT_AFTER0.concat(db.custom.wafter || []), nexts = WAIT_NEXT0.concat(db.custom.wnext || []);
+    return {
+      title: `${tname(d.tooth)} の待機を記録`,
+      body: `<div class="sec"><div class="lb">段取りのひな形から選ぶ（選ぶと下が自動で入ります）</div>
+          ${tps.map((tp) => `<button class="tplbtn ${d.tpl === tp.id ? 'on' : ''}" data-act="wtpl" data-v="${tp.id}">${d.tpl === tp.id ? '●' : '○'} ${esc(tplText(tp))}</button>`).join('')}</div>
+        <div class="sec"><div class="lb">何のあとか（複数可）</div><div class="chips">${opt('after', afters.concat(d.afters.filter((v) => !afters.includes(v))))}<button class="chip add sm" data-act="waddItem" data-k="after">＋</button></div></div>
+        <div class="sec"><div class="lb">待つ期間</div><div class="chips">${WAIT_MONTHS.map((x) => `<button class="chip ${d.months === x.id ? 'on' : ''}" data-act="wchip" data-k="months" data-v="${x.id}">${x.label}</button>`).join('')}</div>
+          ${d.months === 'd' ? '<label class="field" style="margin-top:8px"><span>日数（入れたら「明ける日を出す」を押す）</span><input id="wdays" type="number" inputmode="numeric" min="1" value="' + esc(d.days) + '"></label><button class="chip sm" data-act="wdays">明ける日を出す</button>' : ''}</div>
+        <div class="sec"><div class="lb">待機のあと次にすること</div><div class="chips">${opt('next', nexts.concat(d.next && !nexts.includes(d.next) ? [d.next] : []))}<button class="chip add sm" data-act="waddItem" data-k="next">＋</button></div></div>
+        <div class="sec"><div class="lb">始めた日・記録した人</div><div class="chips"><input id="wstart" type="date" value="${d.start}">${staffSelect('wby', d.by)}</div></div>
+        <p class="note">${end ? `→ 明けるのは <b>${jdate(end)}</b> ごろ。2週間前からフォローと歯式図でお知らせします。` : '何のあとか・期間・次にすることを選んでください。'}期間と次にすることは選んだとおりに知らせるだけで、アプリが決めることはありません。</p>`,
+      foot: `<span class="sp"></span><button class="btn" data-act="back2tooth">やめる</button><button class="btn primary" data-act="saveWait" ${end ? '' : 'disabled'}>記録する</button>`,
+    };
+  },
+  // 記録のない歯をタップしたとき：まず何をするかを選ぶ
+  blank() {
+    const t = sheet.t;
+    return {
+      title: `${tname(t)}：何をしますか`,
+      body: `<div class="menu">
+        <button class="btn primary" data-act="newMemo">＋ 説明を記録する</button>
+        <button class="btn" data-act="newPlan">治療予定にする<small>記録の画面が「治療予定」を選んだ状態で開きます</small></button>
+        <button class="btn" data-act="newTreated"><span><span class="maru">済</span> 治療済みにする</span><small>どんな治療をしたかを選んで保存します</small></button>
+        <button class="btn" data-act="newWait">待機を記録する<small>抜歯後・埋入後などの待つ期間。明ける時期を知らせます</small></button>
+        <button class="btn" data-act="blankMiss">× 欠損にする</button></div>`,
+      foot: '<span class="sp"></span><button class="btn" data-act="close">やめる</button>',
+    };
+  },
+  // 歯をタップしたとき：その歯の説明（経過つき）と操作
+  tooth() {
+    const p = patient(), t = sheet.t, miss = missingOf(p.id).has(t);
+    const ms = active(p.id).filter((m) => m.tooth === t), ds = doneOf(p.id).filter((m) => m.tooth === t);
+    let body = waitCard(p.id, t) + ms.map((m) => toldCard(m, true)).join('');
+    if (miss) body = '<div class="empty">欠損として記録しています。</div>' + body;
+    if (!ms.length && !miss && !waitsOf(p.id, t).length) body += '<div class="empty">この歯には、いま伝えてあることの記録がありません。</div>';
+    if (ds.length) body += `<details class="donebox" ${ms.length ? '' : 'open'}><summary>この歯の済み（${ds.length}件）</summary>${ds.map((m) => toldCard(m, true)).join('')}</details>`;
+    return {
+      title: tname(t), body,
+      foot: `<button class="btn" data-act="toggleMiss">${miss ? '欠損を外す' : '欠損にする'}</button><button class="btn" data-act="addHand" data-t="${t}">申し送りを書く</button>${waitActive(p.id, t).length ? '' : '<button class="btn" data-act="newWait">待機を記録</button>'}<span class="sp"></span>
+        ${miss ? '' : '<button class="btn primary" data-act="newMemo">＋ この歯に説明を記録</button>'}`,
+    };
+  },
+  // 説明を記録する・直す
+  editor() {
+    const p = patient(), d = draft, isNew = !d.id;
+    const picker = isNew ? (sheet.pick
+      ? `<div class="sec"><div class="lb">歯を選ぶ（同じ内容なら、いくつでも選べます）</div>${chart(p.id, { pick: d.teeth })}</div>`
+      : `<div class="sec"><button class="chip sm add" data-act="morePick">ほかの歯にも同じ内容を記録する</button></div>`) : '';
+    const body = `${picker}
+      <div class="sec"><div class="lb">何があるか（複数可）</div><div class="chips">${chips('findings', shown(findAll()), true)}<button class="chip add" data-act="addItem" data-k="findings">＋ 項目を追加</button></div></div>
+      <div class="sec"><div class="lb">部位（任意）</div><div class="chips">${chips('sites', SITES, true)}</div></div>
+      <div class="sec"><div class="lb">今の方針</div><div class="chips">${chips('policy', POLICY)}</div></div>
+      <div class="sec"><div class="lb">こうなったら → こうする</div><div class="chips">${chips('when', shown(whenAll()))}<button class="chip add sm" data-act="addItem" data-k="when">＋</button><span class="arrow">→</span>${chips('then', shown(thenAll()))}<button class="chip add sm" data-act="addItem" data-k="then">＋</button></div></div>
+      <div class="sec"><div class="lb">患者さんに伝えた言葉 ${d.saidEdited ? '（手で直した文）' : '（選んだ項目から自動で作成中）'}</div>
+        <textarea id="said" placeholder="選ぶと自動で文になります。手で直せます。">${esc(d.said)}</textarea>
+        <div class="chips" style="margin-top:6px"><button class="chip sm" data-act="regen">選んだ項目で文を作り直す</button><button class="chip sm" data-act="saveTpl">この文を定型文に登録</button></div>
+        ${db.settings.templates.length ? `<details style="margin-top:6px"><summary class="note" style="cursor:pointer;min-height:40px;display:flex;align-items:center">定型文から選ぶ（${db.settings.templates.length}）</summary>
+          ${db.settings.templates.map((s, i) => `<button class="tpl" data-act="useTpl" data-i="${i}">${esc(s)}</button>`).join('')}</details>` : ''}
+      </div>
+      <div class="sec"><div class="lb">患者さんの受け止め</div><div class="chips">${chips('reaction', REACT)}</div></div>
+      <div class="sec"><div class="lb">次に確認する時期（選ばなければ「2年」を目安にお知らせ）</div><div class="chips">${chips('checkEvery', EVERY)}</div></div>
+      ${isNew ? `<div class="sec"><div class="lb">伝えた日・伝えた人</div><div class="chips">
+        <input type="date" id="d" value="${d.date}" max="${today()}">${staffSelect('by', d.by)}</div></div>`
+        : '<p class="note">直した記録は今日の日付・記録する人で経過に残ります（「説明した」回数には数えません）。</p>'}`;
+    const ok = d.teeth.length && (d.findings.length || d.said.trim());
+    return {
+      title: isNew ? (d.teeth.length ? `${teethTitle(d.teeth)} に説明を記録` : '説明を記録') : `${tname(d.teeth[0])} の説明を直す`,
+      body, foot: `<span class="sp"></span><button class="btn" data-act="close">やめる</button><button class="btn primary" data-act="saveMemo" ${ok ? '' : 'disabled'}>保存${isNew && d.teeth.length > 1 ? `（${d.teeth.length}本）` : ''}</button>`,
+    };
+  },
+  // 確認をくわしく記録
+  check() {
+    const d = draft, m = memo(d.id);
+    return {
+      title: `${tname(m.tooth)} の確認を記録`,
+      body: `<div class="told ${toothCat(m)}" style="margin:0 0 12px"><div class="hd"><span class="no">${tname(m.tooth)}</span><span class="fd">${esc(findText(m))}</span></div><div class="say">「${esc(m.said)}」</div></div>
+        <div class="sec"><div class="lb">今日の様子（任意）</div><div class="chips">${chips('result', RESULT)}</div></div>
+        <div class="sec"><div class="lb">患者さんへの説明</div><div class="chips">${chips('re', [{ id: 'yes', label: '今日も説明した' }, { id: 'no', label: '説明はしていない' }])}</div></div>
+        <label class="field"><span>ひとこと（任意。例：動揺が少し増えた）</span><input type="text" id="cmemo" value="${esc(d.memo)}" autocomplete="off"></label>
+        <div class="sec"><div class="lb">次に確認する時期</div><div class="chips">${chips('checkEvery', EVERY)}</div></div>
+        <div class="sec"><div class="lb">確認した日・人</div><div class="chips"><input type="date" id="d" value="${d.date}" max="${today()}">${staffSelect('by', d.by)}</div></div>
+        <p class="note">様子は見た人が選んで記録するだけです。アプリが方針を変えることはありません。方針を変えるときは「直す」から。</p>`,
+      foot: `<span class="sp"></span><button class="btn" data-act="back2tooth">やめる</button><button class="btn primary" data-act="saveCheck">記録する</button>`,
+    };
+  },
+  done() {
+    return {
+      title: `${tname(draft.tooth)} を${draft.treatMode ? '治療済み' : '済み'}にする`,
+      body: `${draft.treatMode ? '' : `<div class="sec"><div class="lb">理由</div><div class="chips">${chips('why', DONE_WHY)}</div></div>`}
+        ${draft.why === '治療した' ? `<div class="sec"><div class="lb">どんな治療をしたか（選ばなくても保存できます）</div><div class="chips">${chips('treat', shown(treatAll()))}<button class="chip add sm" data-act="addItem" data-k="treat">＋</button></div></div>` : ''}
+        <p class="note">歯式図に緑の丸済と治療の略が出ます。消えずに「済み」の欄と経過に残り、あとで元に戻せます。</p>`,
+      foot: `<span class="sp"></span><button class="btn" data-act="back2tooth">やめる</button><button class="btn primary" data-act="saveDone" ${draft.why ? '' : 'disabled'}>${draft.treatMode ? '治療済みにする' : '済みにする'}</button>`,
+    };
+  },
+  // 待機のひな形を足す（段階を順に並べる）
+  tplEdit() {
+    const d = draft, afters = WAIT_AFTER0.concat(db.custom.wafter || []), nexts = WAIT_NEXT0.concat(db.custom.wnext || []);
+    const sel = (id, arr, v) => `<select id="${id}">${arr.map((x) => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`;
+    const mon = (id, v) => `<select id="${id}">${['1', '2', '3', '4', '5', '6', '9', '12'].map((x) => `<option value="${x}" ${x === v ? 'selected' : ''}>${x}か月</option>`).join('')}</select>`;
+    return {
+      title: '待機のひな形を足す',
+      body: `<label class="field"><span>ひな形の名前（例：抜歯即時インプラント）</span><input type="text" id="tname" value="${esc(d.name)}" autocomplete="off"></label>
+        ${d.steps.map((st, i) => `<div class="sec"><div class="lb">段階 ${i + 1}${d.steps.length > 1 ? ` <button class="chip sm" data-act="tplDelStep" data-i="${i}">この段階を消す</button>` : ''}</div>
+          <div class="chips">${sel('ta' + i, afters, st.after)}<span>のあと</span>${mon('tm' + i, st.months)}<span>待って</span>${sel('tn' + i, nexts, st.next)}</div></div>`).join('')}
+        <div class="chips"><button class="chip sm add" data-act="tplAddStep">＋ 段階を足す</button></div>
+        <p class="note">「待機を記録」でこのひな形を選ぶと段階1が入り、明けたら「次の段階へ」で段階2が始まります。項目は「待機を記録」の画面の「＋」で増やせます。</p>`,
+      foot: `<span class="sp"></span><button class="btn" data-act="close">やめる</button><button class="btn primary" data-act="saveWaitTpl">登録する</button>`,
+    };
+  },
+  hand() {
+    const p = patient(), d = draft, ts = [...new Set(active(p.id).map((m) => m.tooth))].sort((a, b) => a - b);
+    if (d.tooth && !ts.includes(d.tooth)) ts.push(d.tooth);
+    return {
+      title: '申し送りを書く',
+      body: `<label class="field"><span>次に診る人へ（例：次回、揺れを見てください）</span><textarea id="htext">${esc(d.text)}</textarea></label>
+        <label class="field"><span>どの歯のことか（任意）</span><select id="htooth"><option value="0">歯を決めない</option>${ts.map((t) => `<option value="${t}" ${d.tooth === t ? 'selected' : ''}>${tname(t)}</option>`).join('')}</select></label>
+        <p class="note">書いた人は「${esc(db.settings.me)}」として残ります。患者画面の上とフォロー画面に出て、「済み」を押すまで残ります。</p>`,
+      foot: `<span class="sp"></span><button class="btn" data-act="close">やめる</button><button class="btn primary" data-act="saveHand">保存</button>`,
+    };
+  },
+  pickToday() {
+    const q = norm(sheet.q || ''), set = new Set(db.today.ids);
+    const ps = db.patients.filter((p) => !q || [p.name, p.kana, p.chartNo].some((v) => norm(v).includes(q)))
+      .sort((a, b) => (a.chartNo || '').localeCompare(b.chartNo || '', 'ja', { numeric: true }));
+    return {
+      title: '今日みる患者を選ぶ',
+      body: `<input type="search" id="tq" placeholder="名前・ふりがな・カルテ番号" value="${esc(sheet.q || '')}" autocomplete="off" style="width:100%">
+        <div id="trows">${ps.map((p) => `<button class="frow" data-act="todayToggle" data-pid="${p.id}" aria-pressed="${set.has(p.id)}"><span class="cno">${esc(p.chartNo || '—')}</span><span class="a"><b>${esc(p.name)}</b></span>
+          <span class="bd ${set.has(p.id) ? 'ok' : ''}">${set.has(p.id) ? '今日 ✓' : '＋ 入れる'}</span></button>`).join('') || '<div class="empty">見つかりません</div>'}</div>`,
+      foot: `<span class="note">${db.today.ids.length}人を選択中</span><span class="sp"></span><button class="btn primary" data-act="close">できた</button>`,
+    };
+  },
+  patient() {
+    const p = sheet.p;
+    return {
+      title: sheet.isNew ? '患者を追加' : '患者情報',
+      body: `<label class="field"><span>カルテ番号</span><input type="text" id="f_chartNo" value="${esc(p.chartNo)}" inputmode="numeric" autocomplete="off"></label>
+        <label class="field"><span>氏名</span><input type="text" id="f_name" value="${esc(p.name)}" autocomplete="off"></label>
+        <label class="field"><span>ふりがな（検索に使います）</span><input type="text" id="f_kana" value="${esc(p.kana)}" autocomplete="off"></label>
+        <label class="field"><span>生年月日</span><input type="date" id="f_birth" value="${esc(p.birth)}"></label>
+        <label class="field"><span>メモ（患者画面の名前の下に出ます）</span><input type="text" id="f_note" value="${esc(p.note)}" autocomplete="off"></label>
+        <p class="note">入れた内容はこの端末の中だけに残ります（ネットには送りません）。</p>`,
+      foot: `${sheet.isNew ? '' : '<button class="btn danger" data-act="delPatient">この患者を削除</button>'}<span class="sp"></span>
+        <button class="btn" data-act="close">やめる</button><button class="btn primary" data-act="savePatient">保存</button>`,
+    };
+  },
+};
+function settingsView() {
+  const s = db.settings;
+  const cust = Object.keys(CUSTOM_KIND).map((k) => { const arr = shown(db.custom[k]); return arr.length ? `<div class="lb" style="margin-top:10px;font-size:.82rem;color:var(--sub);font-weight:600">${CUSTOM_KIND[k]}</div>
+    ${arr.map((f) => `<div class="lineitem"><span>${esc(f.label)}${f.say ? `<br><span class="note">言い方：${esc(f.say)}</span>` : ''}</span><button data-act="delItem" data-k="${k}" data-id="${f.id}" aria-label="消す">×</button></div>`).join('')}` : ''; }).join('');
+  return `<h2 style="margin-top:0">設定</h2>
+    <div class="sec"><div class="lb">記録する人（院長・衛生士など）</div>
+      ${s.staff.map((n, i) => `<div class="lineitem"><span>${esc(n)}</span><button data-act="delStaff" data-i="${i}" aria-label="消す">×</button></div>`).join('')}
+      <div class="addrow"><input type="text" id="newStaff" placeholder="例：衛生士C" autocomplete="off"><button class="btn" data-act="addStaff">追加</button></div></div>
+    <div class="sec"><div class="lb">文字の大きさ</div><div class="chips"><button class="chip ${s.font !== 'l' ? 'on' : ''}" data-act="font" data-v="m">ふつう</button><button class="chip ${s.font === 'l' ? 'on' : ''}" data-act="font" data-v="l">大きめ</button></div></div>
+    <div class="sec"><div class="lb">定型文（説明の画面で選べる）</div>
+      ${s.templates.map((n, i) => `<div class="lineitem"><span>${esc(n)}</span><button data-act="delTpl" data-i="${i}" aria-label="消す">×</button></div>`).join('') || '<div class="note">まだありません</div>'}</div>
+    <div class="sec"><div class="lb">医院で足した項目</div>${cust || '<div class="note">まだありません。説明を記録する画面の「＋」から足せます。</div>'}
+      <div class="chips" style="margin-top:8px">${Object.keys(CUSTOM_KIND).map((k) => `<button class="chip sm add" data-act="addItem" data-k="${k}">＋「${CUSTOM_KIND[k]}」に足す</button>`).join('')}</div></div>
+    <div class="sec"><div class="lb">待機のひな形（待機を記録する画面で選べる）</div>
+      ${waitTplAll().map((tp) => `<div class="lineitem"><span>${esc(tplText(tp))}${WAIT_TPL0.includes(tp) ? '<br><span class="note">初めから入っているひな形</span>' : ''}</span>${WAIT_TPL0.includes(tp) ? '' : `<button data-act="delWaitTpl" data-id="${tp.id}" aria-label="消す">×</button>`}</div>`).join('')}
+      <div class="chips" style="margin-top:8px"><button class="chip sm add" data-act="newWaitTpl">＋ ひな形を足す</button></div></div>
+    <div class="sec"><div class="lb">バックアップ</div>
+      <p class="note" style="margin-top:0">データはこの端末の中だけにあります。iPad をなくしたり壊したりしたときに戻せるのは、最後に書き出したバックアップまでです。週に1回「書き出す」で、AirDrop などで院内のパソコンに保存してください。${db.settings.lastExport ? `最後の書き出し：${jdate(db.settings.lastExport)}` : 'まだ一度も書き出していません。'}</p>
+      <div class="chips"><button class="btn" data-act="exportJson">書き出す</button><button class="btn" data-act="importJson">読み込む</button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden></div></div>
+    <div class="sec"><div class="lb">見本で試す</div>
+      <p class="note" style="margin-top:0">使い方を試すときに、架空の見本の患者を入れられます。今入っているデータは消えるので、先に書き出してください。</p>
+      <div class="chips"><button class="btn" data-act="reset">見本を入れて試す</button><button class="btn danger" data-act="clearAll">すべて消す</button></div></div>`;
+}
+
+/* ================= 確かめる小窓（confirm / prompt の代わり） ================= */
+let dlgCb = null;
+function ask(o, cb) {
+  dlgCb = cb;
+  $('#dlg').innerHTML = `<div class="sheetwrap"><div class="box" role="alertdialog" aria-modal="true" aria-label="${esc(o.title)}"><h3>${esc(o.title)}</h3>${o.text ? `<p>${esc(o.text)}</p>` : ''}
+    ${(o.fields || []).map((f) => `<label class="field"><span>${esc(f.label)}</span><input type="text" id="dlg_${f.id}" value="${esc(f.value || '')}" placeholder="${esc(f.placeholder || '')}" autocomplete="off"></label>`).join('')}
+    ${o.copy ? `<textarea id="dlg_copy" readonly style="min-height:200px">${esc(o.copy)}</textarea>` : ''}
+    <div class="acts">${o.copy ? '' : '<button class="btn" data-act="dlgNo">やめる</button>'}<button class="btn ${o.danger ? 'danger' : 'primary'}" data-act="dlgOk">${esc(o.ok || 'OK')}</button></div></div></div>`;
+  $('#dlg').hidden = false;
+  const first = $('#dlg input,#dlg textarea'); if (first) { first.focus(); if (o.copy) first.select(); }
+}
+function closeDlg() { $('#dlg').hidden = true; $('#dlg').innerHTML = ''; dlgCb = null; }
+
+/* ================= 操作 ================= */
+function newDraft(t, pick) {
+  draft = { id: null, teeth: t ? [t] : [], findings: [], sites: [], policy: 'watch', when: '', then: '', said: '', saidEdited: false, reaction: 'agree', checkEvery: '', date: today(), by: db.settings.me };
+  openSheet('editor', { pick });
+}
+const memo = (id) => db.memos.find((m) => m.id === id);
+const touch = (m) => { m.updatedAt = Date.now(); };
+// 待機の画面で手で入れた日付・人・日数を、画面を描き直す前に控えておく
+function keepWaitInputs() { if (!draft) return; const s = $('#wstart'), b = $('#wby'), d = $('#wdays'); if (s) draft.start = s.value || today(); if (b) draft.by = b.value; if (d) draft.days = d.value; }
+function keepTplInputs() { if (!draft || !draft.steps) return; const n = $('#tname'); if (n) draft.name = n.value;
+  draft.steps.forEach((st, i) => { const a = $('#ta' + i), m = $('#tm' + i), x = $('#tn' + i); if (a) st.after = a.value; if (m) st.months = m.value; if (x) st.next = x.value; }); }
+function refresh() { render(); if (sheet) renderSheet(); }
+function openTooth(t) { draft = null; openSheet('tooth', { t }); }
+
+const ACT = {
+  nav(b) { state.view = b.dataset.v; closeSheet(); render(); window.scrollTo(0, 0); },
+  follow(b) { state.view = 'follow'; state.ff = b.dataset.f; render(); window.scrollTo(0, 0); },
+  open(b) {
+    state.from = state.view === 'patient' ? state.from : state.view;
+    state.view = 'patient'; state.pid = b.dataset.pid; state.tab = b.dataset.tab || 'chart'; state.cf = ''; state.tl = 0;
+    closeSheet(); render(); window.scrollTo(0, 0);
+    if (b.dataset.t) openTooth(+b.dataset.t);
+  },
+  back() { state.view = state.from || 'list'; render(); },
+  tab(b) { state.tab = b.dataset.v; render(); },
+  cf(b) { state.cf = state.cf === b.dataset.v ? '' : b.dataset.v; render(); },
+  tl(b) { state.tl = +b.dataset.v; render(); },
+  lf(b) { state.lf = b.dataset.v; render(); },
+  close() { closeSheet(); },
+  shade(b, e) { if (e.target === b && sheet && sheet.kind !== 'editor' && sheet.kind !== 'hand' && sheet.kind !== 'check') closeSheet(); },
+  back2tooth() { const t = sheet.back; if (t) openTooth(t); else closeSheet(); },
+  tooth(b) {
+    const t = +b.dataset.t, p = patient();
+    // 記録がなく欠損でもない歯は、すぐ記録の画面へ（タップを減らす）
+    if (!db.memos.some((m) => m.patientId === p.id && m.tooth === t) && !waitsOf(p.id, t).length && !missingOf(p.id).has(t)) return openSheet('blank', { t });
+    openTooth(t);
+  },
+  newWait() { const t = sheet.t, pid = patient().id; draft = { tooth: t, tpl: '', step: 0, after: '', afters: [], months: '', days: '', next: '', start: today(), by: db.settings.me };
+    openSheet('wait', { back: waitsOf(pid, t).length || db.memos.some((m) => m.patientId === pid && m.tooth === t) ? t : 0 }); },
+  wtpl(b) { const tp = waitTplAll().find((x) => x.id === b.dataset.v), s0 = tp.steps[0]; keepWaitInputs(); Object.assign(draft, { tpl: tp.id, step: 0, after: s0.after, afters: [s0.after], months: s0.months, days: s0.days || '', next: s0.next }); renderSheet(); },
+  wchip(b) {
+    keepWaitInputs(); const k = b.dataset.k, v = b.dataset.v;
+    if (k === 'after') { draft.afters = draft.afters.includes(v) ? draft.afters.filter((x) => x !== v) : [...draft.afters, v]; draft.after = draft.afters.join('・'); } // 何のあとかは複数選べる
+    else draft[k] = v;
+    draft.tpl = ''; renderSheet();
+  },
+  wdays() { keepWaitInputs(); renderSheet(); },
+  waddItem(b) {
+    const k = b.dataset.k; keepWaitInputs();
+    ask({ title: k === 'after' ? '「何のあとか」に足す' : '「次にすること」に足す', ok: '追加', fields: [{ id: 'name', label: '項目の名前', placeholder: k === 'after' ? '例：上顎洞底挙上' : '例：仮歯' }] }, (v) => {
+      const name = (v.name || '').trim(); if (!name) return toast('名前を入れてください');
+      const key = k === 'after' ? 'wafter' : 'wnext'; db.custom[key] = db.custom[key] || [];
+      if (!db.custom[key].includes(name)) db.custom[key].push(name);
+      if (k === 'after') { if (!draft.afters.includes(name)) draft.afters.push(name); draft.after = draft.afters.join('・'); } else draft[k] = name;
+      draft.tpl = ''; save(); renderSheet();
+    });
+  },
+  saveWait() {
+    keepWaitInputs(); const d = draft, p = patient(), t = d.tooth;
+    if (d.months === 'd' && !(+d.days > 0)) return toast('日数を入れてください');
+    addWait(p.id, t, d); save(); render(); openTooth(t); toast(`${tname(t)}：待機を記録しました（${jdate(waitEnd(d))}ごろ明け）`);
+  },
+  waitNext(b) {
+    const w = db.waits.find((x) => x.id === b.dataset.id), nx = nextStep(w);
+    w.status = 'done'; w.doneDate = today(); w.doneBy = db.settings.me;
+    addWait(w.patientId, w.tooth, { ...nx, tpl: w.tpl, step: w.step + 1 }); save(); refresh(); toast(`${tname(w.tooth)}：${nx.after}後の待機を始めました`);
+  },
+  waitEnd(b) { const w = db.waits.find((x) => x.id === b.dataset.id); w.status = 'done'; w.doneDate = today(); w.doneBy = db.settings.me; save(); refresh(); toast(`${tname(w.tooth)}：待機を終えました`); },
+  waitDel(b) {
+    ask({ title: 'この待機の記録を取り消しますか？', text: '間違えて記録したときに使います。', ok: '取り消す', danger: true }, () => {
+      db.waits = db.waits.filter((x) => x.id !== b.dataset.id); save(); refresh(); toast('待機の記録を取り消しました');
+    });
+  },
+  newWaitTpl() { draft = { name: '', steps: [{ after: '根の治療', months: '3', next: 'かぶせ物' }] }; openSheet('tplEdit'); },
+  tplAddStep() { keepTplInputs(); const l = draft.steps[draft.steps.length - 1]; draft.steps.push({ after: l.next, months: '3', next: '型取り' }); renderSheet(); },
+  tplDelStep(b) { keepTplInputs(); draft.steps.splice(+b.dataset.i, 1); renderSheet(); },
+  saveWaitTpl() {
+    keepTplInputs(); const name = draft.name.trim(); if (!name) return toast('ひな形の名前を入れてください');
+    db.waitTpl.push({ id: 'x_' + uid(), label: name, steps: draft.steps.map((x) => ({ ...x })) }); save(); closeSheet(); render(); toast(`ひな形「${name}」を足しました`);
+  },
+  delWaitTpl(b) {
+    ask({ title: 'このひな形を消しますか？', text: 'これまでの待機の記録はそのまま残ります。', ok: '消す', danger: true }, () => {
+      db.waitTpl = db.waitTpl.filter((x) => x.id !== b.dataset.id); save(); render(); toast('ひな形を消しました');
+    });
+  },
+  newPlan() { newDraft(sheet.t, false); draft.policy = 'plan'; draft.then = 'treat'; draft.said = sentence(draft); renderSheet(); },
+  newTreated() { draft = { id: null, tooth: sheet.t, why: '治療した', treat: '', treatMode: true }; openSheet('done', { back: 0 }); },
+  blankMiss() { const p = patient(), t = sheet.t, ms = missingOf(p.id); ms.add(t); db.missing[p.id] = [...ms]; save(); closeSheet(); render(); toast(`${tname(t)}：欠損にしました`); },
+  newMemo() { if (sheet && (sheet.kind === 'tooth' || sheet.kind === 'blank')) newDraft(sheet.t, false); else newDraft(null, true); },
+  morePick() { sheet.pick = true; renderSheet(); },
+  pick(b) { const t = +b.dataset.t; draft.teeth = draft.teeth.includes(t) ? draft.teeth.filter((x) => x !== t) : [...draft.teeth, t]; renderSheet(); },
+  chip(b) {
+    const k = b.dataset.k, v = b.dataset.v;
+    if (Array.isArray(draft[k])) draft[k] = draft[k].includes(v) ? draft[k].filter((x) => x !== v) : [...draft[k], v];
+    else draft[k] = draft[k] === v && k !== 'policy' && k !== 'result' && k !== 're' ? '' : v;
+    if (sheet.kind === 'editor' && !draft.saidEdited) draft.said = sentence(draft);
+    renderSheet();
+  },
+  regen() { draft.said = sentence(draft); draft.saidEdited = false; renderSheet(); },
+  useTpl(b) { draft.said = db.settings.templates[+b.dataset.i]; draft.saidEdited = true; renderSheet(); },
+  saveTpl() {
+    const s = draft.said.trim();
+    if (!s) return toast('文が空です');
+    if (db.settings.templates.includes(s)) return toast('同じ定型文があります');
+    db.settings.templates.push(s); save(); toast('定型文に登録しました'); renderSheet();
+  },
+  addItem(b) {
+    const k = b.dataset.k, isWhen = k === 'when' || k === 'treat';
+    ask({ title: `「${CUSTOM_KIND[k]}」に項目を足す`, ok: '追加',
+      fields: [{ id: 'name', label: '項目の名前', placeholder: k === 'findings' ? '例：知覚過敏' : k === 'treat' ? '例：ブリッジ' : isWhen ? '例：しみたら' : '例：ブリッジ' }]
+        .concat(isWhen ? [] : [{ id: 'say', label: '患者さんへの言い方（空なら自動）', placeholder: k === 'findings' ? '例：歯がしみやすくなっています' : '例：ブリッジにしましょう' }]) }, (v) => {
+      const name = (v.name || '').trim(); if (!name) return toast('名前を入れてください');
+      const all = k === 'findings' ? findAll() : k === 'treat' ? treatAll() : isWhen ? whenAll() : thenAll();
+      if (shown(all).some((f) => f.label === name)) return toast('同じ項目があります');
+      const say = (v.say || '').trim().replace(/。$/, '') || (k === 'findings' ? name + 'があります' : name + 'にしましょう');
+      const f = { id: 'x_' + uid(), label: name, short: name.slice(0, k === 'treat' ? 3 : 2), ...(isWhen ? {} : { say }) };
+      (db.custom[k] = db.custom[k] || []).push(f);
+      if (k === 'treat' && draft && sheet && sheet.kind === 'done') draft.treat = f.id;
+      if (draft && sheet && sheet.kind === 'editor') {
+        if (k === 'findings') draft.findings.push(f.id); else draft[k] = f.id;
+        if (!draft.saidEdited) draft.said = sentence(draft);
+      }
+      save(); refresh(); toast(`「${name}」を足しました`);
+    });
+  },
+  delItem(b) { const f = db.custom[b.dataset.k].find((x) => x.id === b.dataset.id); if (f) f.hidden = true; save(); render(); toast('選ぶ一覧から外しました（これまでの記録の表示は残ります）'); },
+  saveMemo() {
+    const d = draft, p = patient();
+    if (!d.teeth.length) return;
+    const fields = { findings: d.findings, sites: d.sites, policy: d.policy || 'watch', ifThen: { when: d.when, then: d.then }, said: d.said.trim() || sentence(d), reaction: d.reaction, checkEvery: d.checkEvery };
+    if (d.id) {
+      const m = memo(d.id); Object.assign(m, fields); m.history.push({ date: today(), by: db.settings.me, kind: 'edit', memo: '' }); touch(m);
+    } else {
+      const ms = missingOf(p.id);
+      for (const t of d.teeth) {
+        db.memos.push({ id: uid(), patientId: p.id, tooth: t, ...fields, findings: [...d.findings], sites: [...d.sites], ifThen: { ...fields.ifThen }, status: 'active',
+          history: [{ date: d.date || today(), by: d.by, kind: 'explain', memo: '' }], createdAt: Date.now(), updatedAt: Date.now() });
+        ms.delete(t);
+      }
+      db.missing[p.id] = [...ms];
+    }
+    save(); const ts = teethTitle(d.teeth); closeSheet(); render(); toast(`${ts}：保存しました`);
+  },
+  edit(b) {
+    const m = memo(b.dataset.id);
+    draft = { id: m.id, teeth: [m.tooth], findings: [...m.findings], sites: [...m.sites], policy: m.policy, when: m.ifThen.when, then: m.ifThen.then, said: m.said, saidEdited: true, reaction: m.reaction, checkEvery: m.checkEvery };
+    openSheet('editor', { pick: false });
+  },
+  quick(b) {
+    const m = memo(b.dataset.id), h = { date: today(), by: db.settings.me, kind: 'check', result: 'same', re: true, memo: '' };
+    m.history.push(h); touch(m); save(); refresh();
+    toast(`${tname(m.tooth)}：変化なし・説明を記録（${db.settings.me}）`, () => { m.history = m.history.filter((x) => x !== h); save(); refresh(); });
+  },
+  check(b) {
+    const m = memo(b.dataset.id);
+    draft = { id: m.id, result: '', re: 'yes', memo: '', checkEvery: m.checkEvery, date: today(), by: db.settings.me };
+    openSheet('check', { back: m.tooth });
+  },
+  saveCheck() {
+    const d = draft, m = memo(d.id);
+    m.history.push({ date: d.date || today(), by: d.by, kind: 'check', result: d.result, re: d.re === 'yes', memo: (d.memo || '').trim() });
+    m.checkEvery = d.checkEvery; touch(m); save();
+    render(); openTooth(m.tooth); toast(`${tname(m.tooth)}：確認を記録しました（${lbl(RESULT, d.result)}）`);
+  },
+  done(b) { const m = memo(b.dataset.id); draft = { id: m.id, tooth: m.tooth, why: '', treat: '' }; openSheet('done', { back: m.tooth }); },
+  saveDone() {
+    let m = draft.id && memo(draft.id);
+    if (!m) { // 記録のない歯をそのまま治療済みにする
+      const now = Date.now();
+      m = { id: uid(), patientId: patient().id, tooth: draft.tooth, findings: [], sites: [], policy: 'plan', ifThen: { when: '', then: 'treat' }, said: '', reaction: 'agree',
+        checkEvery: '', status: 'active', history: [], createdAt: now, updatedAt: now };
+      db.memos.push(m);
+    }
+    m.status = 'done'; m.history.push({ date: today(), by: db.settings.me, kind: 'done', memo: draft.why, ...(draft.why === '治療した' && draft.treat ? { treat: draft.treat } : {}) }); touch(m);
+    save(); closeSheet(); render(); toast(`${tname(m.tooth)}：済みにしました`);
+  },
+  // 1回押すだけで治療予定に（取り消しは「直す」で方針を戻す）
+  toPlan(b) {
+    const m = memo(b.dataset.id);
+    m.history.push({ date: today(), by: db.settings.me, kind: 'toPlan', memo: lbl(POLICY, m.policy) }); m.policy = 'plan'; touch(m);
+    save(); refresh(); toast(`${tname(m.tooth)}：治療予定にしました`);
+  },
+  // 1回押すだけで治療済みに（「済みにする」の理由「治療した」と同じ。この歯の済みの欄の「元に戻す」で取り消せる）
+  toTreated(b) { const m = memo(b.dataset.id); draft = { id: m.id, tooth: m.tooth, why: '治療した', treat: '', treatMode: true }; openSheet('done', { back: m.tooth }); },
+  reopen(b) {
+    const m = memo(b.dataset.id);
+    m.status = 'active'; m.history.push({ date: today(), by: db.settings.me, kind: 'reopen', memo: '' }); touch(m);
+    save(); refresh(); toast(`${tname(m.tooth)}：元に戻しました`);
+  },
+  toggleMiss() {
+    const p = patient(), ms = missingOf(p.id), t = sheet.t;
+    if (ms.has(t)) ms.delete(t); else ms.add(t);
+    db.missing[p.id] = [...ms]; save(); refresh();
+  },
+  addHand(b) { draft = { text: '', tooth: +(b.dataset.t || 0) }; openSheet('hand'); },
+  saveHand() {
+    const text = ($('#htext').value || '').trim(); if (!text) return toast('内容を入れてください');
+    db.handoffs.push({ id: uid(), patientId: state.pid, tooth: +$('#htooth').value || 0, text, by: db.settings.me, date: today(), done: false, doneBy: '', doneDate: '' });
+    save(); closeSheet(); render(); toast('申し送りを保存しました');
+  },
+  handDone(b) {
+    const h = db.handoffs.find((x) => x.id === b.dataset.id); if (!h) return;
+    h.done = !h.done; h.doneBy = h.done ? db.settings.me : ''; h.doneDate = h.done ? today() : '';
+    save(); render(); toast(h.done ? '申し送りを済みにしました' : '申し送りを戻しました');
+  },
+  pickToday() { openSheet('pickToday', { q: '' }); },
+  todayToggle(b) {
+    const id = b.dataset.pid, i = db.today.ids.indexOf(id), p = pById(id);
+    if (i >= 0) db.today.ids.splice(i, 1); else db.today.ids.push(id);
+    save(); refresh(); if (!sheet) toast(i >= 0 ? `${p.name} さんを今日の一覧から外しました` : `${p.name} さんを今日の一覧に入れました`);
+  },
+  seen(b) { const id = b.dataset.pid, i = db.today.seen.indexOf(id); if (i >= 0) db.today.seen.splice(i, 1); else db.today.seen.push(id); save(); render(); },
+  addPatient() { openSheet('patient', { isNew: true, p: { id: uid(), chartNo: '', name: '', kana: '', birth: '', note: '', createdAt: Date.now() } }); },
+  editPatient() { openSheet('patient', { isNew: false, p: { ...patient() } }); },
+  savePatient() {
+    const p = sheet.p;
+    for (const k of ['chartNo', 'name', 'kana', 'birth', 'note']) p[k] = ($('#f_' + k).value || '').trim();
+    if (!p.name) return toast('氏名を入れてください');
+    const dup = db.patients.some((x) => x.id !== p.id && p.chartNo && x.chartNo === p.chartNo);
+    p.updatedAt = Date.now();
+    const i = db.patients.findIndex((x) => x.id === p.id);
+    if (i >= 0) db.patients[i] = p; else db.patients.push(p);
+    save(); closeSheet(); if (state.view !== 'patient') state.from = state.view; state.view = 'patient'; state.pid = p.id; state.tab = 'chart'; render();
+    toast(dup ? '同じカルテ番号の患者がいます（保存はしました）' : '保存しました');
+  },
+  delPatient() {
+    const p = patient();
+    ask({ title: 'この患者を削除しますか？', text: `${p.name} さんと、その説明の記録・申し送りをすべて削除します。元に戻せません。`, ok: '削除する', danger: true }, () => {
+      db.patients = db.patients.filter((x) => x.id !== p.id); db.memos = db.memos.filter((m) => m.patientId !== p.id);
+      db.handoffs = db.handoffs.filter((h) => h.patientId !== p.id); db.today.ids = db.today.ids.filter((i) => i !== p.id); delete db.missing[p.id];
+      save(); closeSheet(); state.view = 'list'; render(); toast('削除しました');
+    });
+  },
+  addStaff() {
+    const n = ($('#newStaff').value || '').trim();
+    if (!n) return; if (db.settings.staff.includes(n)) return toast('同じ名前があります');
+    db.settings.staff.push(n); save(); render();
+  },
+  delStaff(b) {
+    if (db.settings.staff.length <= 1) return toast('1人は残してください');
+    db.settings.staff.splice(+b.dataset.i, 1);
+    if (!db.settings.staff.includes(db.settings.me)) db.settings.me = db.settings.staff[0];
+    save(); render();
+  },
+  font(b) { db.settings.font = b.dataset.v; save(); render(); },
+  delTpl(b) { db.settings.templates.splice(+b.dataset.i, 1); save(); render(); },
+  copySum() {
+    const text = summaryText(patient());
+    const fallback = () => ask({ title: 'コピーできませんでした', text: '下の文を長押しして、コピーしてください。', copy: text, ok: '閉じる' }, () => {});
+    try { navigator.clipboard.writeText(text).then(() => toast('コピーしました。カルテに貼り付けできます'), fallback); } catch (e) { fallback(); }
+  },
+  print() { try { window.print(); } catch (e) { toast('印刷できませんでした'); } },
+  exportJson() {
+    if (inFrame) return toast('この画面では書き出しできません');
+    const d = new Date(), name = `tooth-told-backup-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
+    const text = JSON.stringify({ app: 'tooth-told', version: 2, exportedAt: d.toISOString(), ...db }, null, 1);
+    const done = () => { db.settings.lastExport = today(); save(); render(); toast('書き出しました。院内のパソコンに保存してください'); };
+    // iPad・iPhone では「共有」から AirDrop・ファイルに保存 を選べるようにする
+    try {
+      const file = new File([text], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: name }).then(done, (err) => { if (err && err.name !== 'AbortError') toast('書き出せませんでした'); });
+        return;
+      }
+    } catch (e) { /* 共有が使えない端末は下の保存へ */ }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    done();
+  },
+  importJson() { $('#importFile').click(); },
+  reset() {
+    ask({ title: '見本を入れて試しますか？', text: '今入っているデータはすべて消えます（先に書き出しておくと戻せます）。', ok: '見本を入れる', danger: true }, () => {
+      db = migrate(sample()); save(); closeSheet(); state.view = 'list'; render(); toast('見本を入れました');
+    });
+  },
+  clearAll() {
+    ask({ title: 'すべて消しますか？', text: '患者・記録・待機・申し送りがすべて消えます。記録する人・定型文・足した項目は残ります。元に戻せません（書き出したバックアップからは戻せます）。', ok: 'すべて消す', danger: true }, () => {
+      const keep = { custom: db.custom, settings: db.settings, waitTpl: db.waitTpl };
+      db = migrate({ patients: [], memos: [], missing: {}, handoffs: [], waits: [], ...keep }); save(); closeSheet(); state.view = 'list'; render(); toast('すべて消しました');
+    });
+  },
+  dlgOk() {
+    const cb = dlgCb, v = {};
+    document.querySelectorAll('#dlg input').forEach((i) => { v[i.id.replace('dlg_', '')] = i.value; });
+    closeDlg(); if (cb) cb(v);
+  },
+  dlgNo() { closeDlg(); },
+};
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]');
+  if (!b || b.disabled) return;
+  if (!$('#dlg').hidden && !b.closest('#dlg')) return;
+  const f = ACT[b.dataset.act];
+  if (f) f(b, e);
+});
+document.addEventListener('input', (e) => {
+  const id = e.target.id;
+  if (id === 'said') {
+    draft.said = e.target.value; draft.saidEdited = true;
+    const ok = draft.teeth.length && (draft.findings.length || draft.said.trim());
+    const sv = $('[data-act="saveMemo"]'); if (sv) sv.disabled = !ok;
+  } else if (id === 'q') { state.q = e.target.value; renderRows(); }
+  else if (id === 'tq') {
+    sheet.q = e.target.value; const pos = e.target.selectionStart; renderSheet();
+    const el = $('#tq'); el.focus(); try { el.setSelectionRange(pos, pos); } catch (err) { /* 対応していない入力欄 */ }
+  }
+  else if (id === 'd' && draft) draft.date = e.target.value;
+  else if (id === 'cmemo' && draft) draft.memo = e.target.value;
+  else if (id === 'htext' && draft) draft.text = e.target.value;
+});
+document.addEventListener('change', (e) => {
+  const id = e.target.id;
+  if (id === 'me') { db.settings.me = e.target.value; save(); }
+  else if (id === 'by' && draft) draft.by = e.target.value;
+  else if (id === 'htooth' && draft) draft.tooth = +e.target.value;
+  else if (id === 'sort') { state.sort = e.target.value; renderRows(); }
+  else if (id === 'importFile') {
+    const f = e.target.files[0]; if (!f) return;
+    f.text().then((s) => {
+      const d = JSON.parse(s);
+      if (d.app !== 'tooth-told' || !Array.isArray(d.patients) || !Array.isArray(d.memos)) throw new Error('このアプリのバックアップではありません');
+      ask({ title: 'バックアップを読み込みますか？', text: `患者 ${d.patients.length}人・説明 ${d.memos.length}件を読み込みます。今のデータは置き換わります。`, ok: '読み込む', danger: true }, () => {
+        const { app, version, exportedAt, ...rest } = d; // 待機・ひな形・最後の書き出し日も含めて戻す
+        db = migrate(rest);
+        save(); closeSheet(); state.view = 'list'; render(); toast('読み込みました');
+      });
+    }).catch((err) => toast('読み込めませんでした：' + err.message));
+    e.target.value = '';
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.id === 'q') { const rows = document.querySelectorAll('#rows .go'); if (rows.length === 1) rows[0].click(); }
+  if (e.key === 'Enter' && e.target.closest('#dlg') && e.target.tagName === 'INPUT') ACT.dlgOk();
+  if (e.key === 'Enter' && e.target.id === 'newStaff') ACT.addStaff();
+  if (e.key === 'Escape') { if (!$('#dlg').hidden) closeDlg(); else if (sheet) closeSheet(); }
+});
+
+let toastTimer;
+function toast(msg, undo) {
+  const el = $('#toast');
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button id="undo">取り消し</button>' : ''}`;
+  el.hidden = false;
+  if (undo) $('#undo').onclick = () => { undo(); el.hidden = true; };
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, undo ? 6000 : 3000);
+}
+
+load().then(render);
+</script>
