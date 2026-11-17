@@ -6,12 +6,12 @@
 <meta name="referrer" content="no-referrer">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="歯の状況">
+<meta name="apple-mobile-web-app-title" content="歯の状況把握アプリ">
 <meta name="theme-color" content="#0f766e">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
-<title>歯の状況把握</title>
+<title>歯の状況把握アプリ</title>
 <style>
 /* 配置：上に帯（アプリ名・記録する人）、切り替え（患者／フォロー／設定）は広い画面では帯の中、狭い画面では下に固定。中身は1列、患者画面だけ歯式図＋一覧。 */
 :root{
@@ -682,7 +682,7 @@ function render() {
   const cur = v === 'patient' ? 'list' : v;
   $('#app').innerHTML = `
   <header class="top"><div class="topin">
-    <span class="ttl">歯の状況把握</span><span class="sp"></span>
+    <span class="ttl">歯の状況把握アプリ</span><span class="sp"></span>
     <label class="me"><span>記録<span class="wide">する人</span></span> <select id="me">${s.staff.map((n) => `<option ${n === s.me ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
     <nav class="nav" aria-label="画面の切り替え">${nav.map(([k, l, n]) => `<button class="${cur === k ? 'on' : ''}" data-act="nav" data-v="${k}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</nav>
     <button class="gear ${v === 'settings' ? 'on' : ''}" data-act="nav" data-v="settings" aria-label="設定"><span class="gi" aria-hidden="true">⚙</span><small>設定</small></button>
