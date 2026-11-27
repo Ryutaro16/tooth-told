@@ -865,9 +865,8 @@ function toldCard(m, full = false) {
     .map((h) => `<li class="${evClass(h)}"><span class="d">${jdate(h.date)}</span>${esc(eventText(h, m))}　<span class="w">${esc(h.by)}</span>${h.kind === 'check' && h.memo ? `<span class="q">${esc(h.memo)}</span>` : ''}</li>`).join('');
   const acts = m.status === 'active'
     ? `<button class="btn primary" data-act="quick" data-id="${m.id}">変化なし・今日も説明した</button>
-       <button class="btn" data-act="check" data-id="${m.id}">確認をくわしく記録</button>
-       <button class="btn" data-act="edit" data-id="${m.id}">直す</button>
-       <button class="btn" data-act="done" data-id="${m.id}">済みにする</button>
+       <button class="btn" data-act="check" data-id="${m.id}">変化あり</button>
+       <button class="btn" data-act="edit" data-id="${m.id}">歯の状態を修正する</button>
        <span class="acts-break"></span>
        ${catOf(m) !== 'plan' ? `<button class="btn" data-act="toPlan" data-id="${m.id}">治療予定にする</button>` : ''}
        <button class="btn" data-act="toTreated" data-id="${m.id}"><span class="maru">済</span> 治療済みにする</button>
@@ -1039,7 +1038,7 @@ const SHEETS = {
     return {
       title: tname(t), body,
       foot: `<button class="btn" data-act="toggleMiss">${miss ? '欠損を外す' : '欠損にする'}</button><button class="btn" data-act="addHand" data-t="${t}">申し送りを書く</button>${waitActive(p.id, t).length ? '' : '<button class="btn" data-act="newWait">待機を記録</button>'}<span class="sp"></span>
-        ${miss ? '' : '<button class="btn primary" data-act="newMemo">＋ この歯に説明を記録</button>'}`,
+        ${miss || ms.length ? '' : '<button class="btn primary" data-act="newMemo">＋ この歯に説明を記録</button>'}`,
     };
   },
   // 説明を記録する・直す
@@ -1074,15 +1073,13 @@ const SHEETS = {
   check() {
     const d = draft, m = memo(d.id);
     return {
-      title: `${tname(m.tooth)} の確認を記録`,
+      title: `${tname(m.tooth)} の変化を記録`,
       body: `<div class="told ${toothCat(m)}" style="margin:0 0 12px"><div class="hd"><span class="no">${tname(m.tooth)}</span><span class="fd">${esc(findText(m))}</span></div><div class="say">「${esc(m.said)}」</div></div>
-        <div class="sec"><div class="lb">今日の様子（任意）</div><div class="chips">${chips('result', RESULT)}</div></div>
-        <div class="sec"><div class="lb">患者さんへの説明</div><div class="chips">${chips('re', [{ id: 'yes', label: '今日も説明した' }, { id: 'no', label: '説明はしていない' }])}</div></div>
+        <div class="sec"><div class="lb">どう変わったか</div><div class="chips">${chips('result', RESULT.filter((x) => x.id !== 'same'))}</div></div>
         <label class="field"><span>ひとこと（任意。例：動揺が少し増えた）</span><input type="text" id="cmemo" value="${esc(d.memo)}" autocomplete="off"></label>
-        <div class="sec"><div class="lb">次に確認する時期</div><div class="chips">${chips('checkEvery', EVERY)}</div></div>
         <div class="sec"><div class="lb">確認した日・人</div><div class="chips"><input type="date" id="d" value="${d.date}" max="${today()}">${staffSelect('by', d.by)}</div></div>
-        <p class="note">様子は見た人が選んで記録するだけです。アプリが方針を変えることはありません。方針を変えるときは「直す」から。</p>`,
-      foot: `<span class="sp"></span><button class="btn" data-act="back2tooth">やめる</button><button class="btn primary" data-act="saveCheck">記録する</button>`,
+        <p class="note">様子は見た人が選んで記録するだけです。アプリが方針を変えることはありません。方針を変えるときは「歯の状態を修正する」から。</p>`,
+      foot: `<span class="sp"></span><button class="btn" data-act="back2tooth">やめる</button><button class="btn primary" data-act="saveCheck" ${d.result ? '' : 'disabled'}>記録する</button>`,
     };
   },
   done() {
@@ -1361,7 +1358,7 @@ const ACT = {
     m.status = 'done'; m.history.push({ date: today(), by: db.settings.me, kind: 'done', memo: draft.why, ...(draft.why === '治療した' && draft.treat ? { treat: draft.treat } : {}) }); touch(m);
     save(); closeSheet(); render(); toast(`${tname(m.tooth)}：済みにしました`);
   },
-  // 1回押すだけで治療予定に（取り消しは「直す」で方針を戻す）
+  // 1回押すだけで治療予定に（取り消しは「歯の状態を修正する」で方針を戻す）
   toPlan(b) {
     const m = memo(b.dataset.id);
     m.history.push({ date: today(), by: db.settings.me, kind: 'toPlan', memo: lbl(POLICY, m.policy) }); m.policy = 'plan'; touch(m);
