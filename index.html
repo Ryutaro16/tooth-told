@@ -870,8 +870,10 @@ function toldCard(m, full = false) {
        <button class="btn" data-act="done" data-id="${m.id}">済みにする</button>
        <span class="acts-break"></span>
        ${catOf(m) !== 'plan' ? `<button class="btn" data-act="toPlan" data-id="${m.id}">治療予定にする</button>` : ''}
-       <button class="btn" data-act="toTreated" data-id="${m.id}"><span class="maru">済</span> 治療済みにする</button>`
-    : `<button class="btn" data-act="reopen" data-id="${m.id}">元に戻す</button>`;
+       <button class="btn" data-act="toTreated" data-id="${m.id}"><span class="maru">済</span> 治療済みにする</button>
+       <button class="btn danger" data-act="delMemo" data-id="${m.id}">この記録を消す</button>`
+    : `<button class="btn" data-act="reopen" data-id="${m.id}">元に戻す</button>
+       <button class="btn danger" data-act="delMemo" data-id="${m.id}">この記録を消す</button>`;
   return `<div class="told ${m.status === 'done' ? 'done' : tc}">${head}<div class="acts">${acts}</div><ol class="tl mini">${hist}</ol></div>`;
 }
 function chart(pid, o = {}) {
@@ -1371,6 +1373,13 @@ const ACT = {
     const m = memo(b.dataset.id);
     m.status = 'active'; m.history.push({ date: today(), by: db.settings.me, kind: 'reopen', memo: '' }); touch(m);
     save(); refresh(); toast(`${tname(m.tooth)}：元に戻しました`);
+  },
+  delMemo(b) {
+    const m = memo(b.dataset.id);
+    ask({ title: `${tname(m.tooth)} の記録を消しますか？`, text: 'この記録と経過をすべて消します。元に戻せません（入れ間違いのとき用）。', ok: '消す', danger: true }, () => {
+      db.memos = db.memos.filter((x) => x.id !== m.id);
+      save(); refresh(); toast(`${tname(m.tooth)}：記録を消しました`);
+    });
   },
   toggleMiss() {
     const p = patient(), ms = missingOf(p.id), t = sheet.t;
